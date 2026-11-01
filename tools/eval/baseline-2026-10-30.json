@@ -1,0 +1,337 @@
+{
+  "book": {
+    "dir": "distill/books/<book-id>",
+    "name": "108273 gbk",
+    "chars": 145215
+  },
+  "L1": {
+    "chars": 145215,
+    "chapters": 10,
+    "paras": 2765,
+    "quotes": 1507,
+    "pure_dialogue": 1453,
+    "pure_one_name": 287,
+    "quote_pairs": {
+      "「」": [
+        1508,
+        1508
+      ],
+      "『』": [
+        28,
+        28
+      ],
+      "“”": [
+        0,
+        0
+      ],
+      "\"\"": [
+        0,
+        null
+      ]
+    },
+    "quote_missed": {
+      "『』": 28,
+      "“”": 0
+    },
+    "quote_len": {
+      "median": 21,
+      "max": 146,
+      "over600": 0
+    },
+    "chapter_style": {
+      "第X章": 9,
+      "Chapter N": 0,
+      "markdown #": 0,
+      "楔子/序章/后记": 0,
+      "已识别": 9
+    }
+  },
+  "L2": {
+    "roster_size": 300,
+    "top": [
+      [
+        "换句话",
+        11
+      ],
+      [
+        "老实",
+        9
+      ],
+      [
+        "这样的反",
+        8
+      ],
+      [
+        "坦白",
+        6
+      ],
+      [
+        "应该",
+        5
+      ],
+      [
+        "话说",
+        5
+      ],
+      [
+        "有这种反",
+        4
+      ],
+      [
+        "更不用",
+        4
+      ],
+      [
+        "兰兹公爵",
+        3
+      ],
+      [
+        "住发出赞",
+        3
+      ],
+      [
+        "出这个疑",
+        3
+      ],
+      [
+        "殿下",
+        3
+      ]
+    ],
+    "gold_exact": 4,
+    "gold_loose": 5,
+    "gold_total": 7,
+    "recall": {
+      "艾妮丝菲雅": {
+        "exact": [],
+        "loose": [
+          "艾妮丝"
+        ]
+      },
+      "尤莉安娜": {
+        "exact": [
+          "尤菲"
+        ],
+        "loose": [
+          "尤菲"
+        ]
+      },
+      "伊莉丝": {
+        "exact": [
+          "伊莉丝"
+        ],
+        "loose": [
+          "伊莉丝"
+        ]
+      },
+      "格兰特": {
+        "exact": [
+          "格兰特"
+        ],
+        "loose": [
+          "格兰特"
+        ]
+      },
+      "国王": {
+        "exact": [
+          "父王"
+        ],
+        "loose": [
+          "父王"
+        ]
+      },
+      "骑士团长": {
+        "exact": [],
+        "loose": []
+      },
+      "龙": {
+        "exact": [],
+        "loose": []
+      }
+    },
+    "junk_in_top": [
+      "换句话",
+      "老实",
+      "这样的反",
+      "坦白",
+      "应该",
+      "话说",
+      "有这种反",
+      "更不用",
+      "兰兹公爵",
+      "住发出赞",
+      "出这个疑",
+      "殿下",
+      "是令人怀",
+      "语气这么",
+      "别这么",
+      "有什么",
+      "头提出疑",
+      "现在",
+      "法的人来"
+    ]
+  },
+  "L3": {
+    "character": "尤莉安娜·玛赞塔",
+    "resolved": "尤莉安娜·玛赞塔",
+    "aliases": [],
+    "roster_size": 300,
+    "quotes": 1507,
+    "kept": 1127,
+    "self": 383,
+    "other": 744,
+    "alternate": 581,
+    "pronoun": 2,
+    "same": 0,
+    "topic": 533,
+    "dropped": 380,
+    "named": 546,
+    "named_rate": 0.36230922362309226,
+    "topic_pure": 516,
+    "trusted": 195,
+    "trusted_rate": 0.1293961512939615,
+    "top_bad_speakers": [
+      [
+        "殿下",
+        156
+      ],
+      [
+        "这个",
+        42
+      ],
+      [
+        "现在",
+        32
+      ],
+      [
+        "这种",
+        28
+      ],
+      [
+        "应该",
+        19
+      ],
+      [
+        "有什么",
+        18
+      ],
+      [
+        "那么",
+        14
+      ],
+      [
+        "兰兹公爵",
+        7
+      ]
+    ],
+    "alternate_rate": 0.3855341738553417,
+    "dropped_rate": 0.252156602521566
+  },
+  "L4": {
+    "blocks": 330,
+    "blocks_with_cue": 237,
+    "blocks_with_cue_strict": 183,
+    "dialogue": 1503,
+    "in_cue_block": 1324,
+    "in_cue_block_strict": 1181,
+    "block_lens": {
+      "1": 91,
+      "2": 50,
+      "3": 52,
+      "4": 39,
+      "5": 9,
+      "6": 11,
+      "7": 16,
+      "8": 13,
+      "9": 49
+    },
+    "cue_rate": 0.8809048569527611,
+    "cue_rate_strict": 0.7857618097139055
+  },
+  "L5": {
+    "paragraphs": 60,
+    "expect_lines": 45,
+    "got_lines": 56,
+    "hit": 1,
+    "miss": 38,
+    "wrong": 6,
+    "extra": 0,
+    "false_positive": 13,
+    "accuracy": 0.022222222222222223,
+    "named_rate": 0.15555555555555556,
+    "by_type": {
+      "A_inline": {
+        "n": 4,
+        "expect": 1,
+        "hit": 1,
+        "miss": 0,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 3
+      },
+      "B_cross": {
+        "n": 12,
+        "expect": 12,
+        "hit": 0,
+        "miss": 11,
+        "wrong": 1,
+        "extra": 0,
+        "fp": 0
+      },
+      "C_turn": {
+        "n": 12,
+        "expect": 12,
+        "hit": 0,
+        "miss": 10,
+        "wrong": 2,
+        "extra": 0,
+        "fp": 0
+      },
+      "E_variant": {
+        "n": 4,
+        "expect": 4,
+        "hit": 0,
+        "miss": 4,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 0
+      },
+      "N_negative": {
+        "n": 10,
+        "expect": 0,
+        "hit": 0,
+        "miss": 0,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 8
+      },
+      "M_multi": {
+        "n": 10,
+        "expect": 10,
+        "hit": 0,
+        "miss": 9,
+        "wrong": 1,
+        "extra": 0,
+        "fp": 0
+      },
+      "V_viewpoint": {
+        "n": 2,
+        "expect": 0,
+        "hit": 0,
+        "miss": 0,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 2
+      },
+      "P_plain": {
+        "n": 6,
+        "expect": 6,
+        "hit": 0,
+        "miss": 4,
+        "wrong": 2,
+        "extra": 0,
+        "fp": 0
+      }
+    }
+  }
+}

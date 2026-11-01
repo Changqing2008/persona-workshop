@@ -1,0 +1,368 @@
+{
+  "book": {
+    "dir": "distill/books/<book-id>",
+    "name": "108273 gbk",
+    "chars": 145215
+  },
+  "L1": {
+    "chars": 145215,
+    "chapters": 10,
+    "paras": 2765,
+    "quotes": 1507,
+    "pure_dialogue": 1453,
+    "pure_one_name": 287,
+    "quote_pairs": {
+      "「」": [
+        1508,
+        1508
+      ],
+      "『』": [
+        28,
+        28
+      ],
+      "“”": [
+        0,
+        0
+      ],
+      "\"\"": [
+        0,
+        null
+      ]
+    },
+    "quote_missed": {
+      "『』": 28,
+      "“”": 0
+    },
+    "quote_len": {
+      "median": 21,
+      "max": 146,
+      "over600": 0
+    },
+    "chapter_style": {
+      "第X章": 9,
+      "Chapter N": 0,
+      "markdown #": 0,
+      "楔子/序章/后记": 0,
+      "已识别": 9
+    }
+  },
+  "L2": {
+    "entities": 13,
+    "tier_a": 10,
+    "tier_b": 3,
+    "top": [
+      [
+        "尤菲",
+        619,
+        "A"
+      ],
+      [
+        "艾妮丝",
+        256,
+        "A"
+      ],
+      [
+        "伊莉丝",
+        206,
+        "B"
+      ],
+      [
+        "父王",
+        171,
+        "B"
+      ],
+      [
+        "亚尔",
+        134,
+        "A"
+      ],
+      [
+        "格兰特",
+        127,
+        "B"
+      ],
+      [
+        "奈雪儿",
+        25,
+        "A"
+      ],
+      [
+        "蕾妮",
+        17,
+        "A"
+      ],
+      [
+        "纳维尔",
+        5,
+        "A"
+      ],
+      [
+        "奥芬斯",
+        5,
+        "A"
+      ],
+      [
+        "莫里兹·夏尔托斯",
+        2,
+        "A"
+      ],
+      [
+        "萨兰·麦齐",
+        2,
+        "A"
+      ]
+    ],
+    "gold_hit": 5,
+    "gold_total": 7,
+    "recall": {
+      "艾妮丝菲雅": [
+        "艾妮丝菲雅",
+        "艾妮丝"
+      ],
+      "尤莉安娜": [
+        "尤莉安娜",
+        "尤菲"
+      ],
+      "伊莉丝": [
+        "伊莉丝"
+      ],
+      "格兰特": [
+        "格兰特"
+      ],
+      "国王": [
+        "父王"
+      ],
+      "骑士团长": [],
+      "龙": []
+    },
+    "pending": [
+      {
+        "name": "殿下",
+        "count": 410,
+        "tier": "C",
+        "options": [
+          "艾妮丝",
+          "尤菲",
+          "亚尔",
+          "蕾妮"
+        ],
+        "reason": "两人以上共用这个称呼，自动归并会混人"
+      },
+      {
+        "name": "大人",
+        "count": 21,
+        "tier": "C",
+        "options": [
+          "艾妮丝",
+          "尤菲",
+          "亚尔",
+          "蕾妮"
+        ],
+        "reason": "两人以上共用这个称呼，自动归并会混人"
+      },
+      {
+        "name": "陛下",
+        "count": 33,
+        "tier": "C",
+        "options": [
+          "艾妮丝",
+          "尤菲",
+          "亚尔",
+          "蕾妮"
+        ],
+        "reason": "两人以上共用这个称呼，自动归并会混人"
+      },
+      {
+        "name": "公爵",
+        "count": 168,
+        "tier": "C",
+        "options": [
+          "艾妮丝",
+          "尤菲",
+          "亚尔",
+          "蕾妮"
+        ],
+        "reason": "两人以上共用这个称呼，自动归并会混人"
+      },
+      {
+        "name": "小姐",
+        "count": 117,
+        "tier": "C",
+        "options": [
+          "艾妮丝",
+          "尤菲",
+          "亚尔",
+          "蕾妮"
+        ],
+        "reason": "两人以上共用这个称呼，自动归并会混人"
+      },
+      {
+        "name": "夫人",
+        "count": 32,
+        "tier": "C",
+        "options": [
+          "艾妮丝",
+          "尤菲",
+          "亚尔",
+          "蕾妮"
+        ],
+        "reason": "两人以上共用这个称呼，自动归并会混人"
+      }
+    ],
+    "conflicts": []
+  },
+  "L3": {
+    "character": "尤莉安娜·玛赞塔",
+    "resolved": "尤莉安娜·玛赞塔",
+    "aliases": [
+      "尤菲",
+      "尤莉安娜"
+    ],
+    "roster_size": 13,
+    "quotes": 1507,
+    "kept": 492,
+    "self": 238,
+    "other": 254,
+    "alternate": 421,
+    "pronoun": 0,
+    "same": 0,
+    "topic": 14,
+    "cue_bound": 53,
+    "dropped": 1015,
+    "named": 71,
+    "named_rate": 0.047113470471134705,
+    "topic_pure": 0,
+    "trusted": 63,
+    "trusted_rate": 0.0418049104180491,
+    "top_bad_speakers": [
+      [
+        "亚尔",
+        3
+      ],
+      [
+        "奈雪儿",
+        3
+      ],
+      [
+        "莫里兹·夏尔托斯",
+        1
+      ],
+      [
+        "亚尔加德",
+        1
+      ]
+    ],
+    "alternate_rate": 0.2793629727936297,
+    "dropped_rate": 0.6735235567352356
+  },
+  "L4": {
+    "blocks": 330,
+    "blocks_with_cue": 237,
+    "blocks_with_cue_strict": 87,
+    "dialogue": 1503,
+    "in_cue_block": 1324,
+    "in_cue_block_strict": 740,
+    "bindable_paras": 53,
+    "bindable_lines": 53,
+    "block_lens": {
+      "1": 91,
+      "2": 50,
+      "3": 52,
+      "4": 39,
+      "5": 9,
+      "6": 11,
+      "7": 16,
+      "8": 13,
+      "9": 49
+    },
+    "cue_rate": 0.8809048569527611,
+    "cue_rate_strict": 0.49234863606121093,
+    "bindable_rate": 0.03526280771789754
+  },
+  "L5": {
+    "paragraphs": 60,
+    "expect_lines": 45,
+    "got_lines": 56,
+    "hit": 4,
+    "miss": 41,
+    "wrong": 0,
+    "extra": 0,
+    "false_positive": 13,
+    "accuracy": 0.08888888888888889,
+    "named_rate": 0.08888888888888889,
+    "by_type": {
+      "A_inline": {
+        "n": 4,
+        "expect": 1,
+        "hit": 1,
+        "miss": 0,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 3
+      },
+      "B_cross": {
+        "n": 12,
+        "expect": 12,
+        "hit": 1,
+        "miss": 11,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 0
+      },
+      "C_turn": {
+        "n": 12,
+        "expect": 12,
+        "hit": 0,
+        "miss": 12,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 0
+      },
+      "E_variant": {
+        "n": 4,
+        "expect": 4,
+        "hit": 0,
+        "miss": 4,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 0
+      },
+      "N_negative": {
+        "n": 10,
+        "expect": 0,
+        "hit": 0,
+        "miss": 0,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 8
+      },
+      "M_multi": {
+        "n": 10,
+        "expect": 10,
+        "hit": 1,
+        "miss": 9,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 0
+      },
+      "V_viewpoint": {
+        "n": 2,
+        "expect": 0,
+        "hit": 0,
+        "miss": 0,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 2
+      },
+      "P_plain": {
+        "n": 6,
+        "expect": 6,
+        "hit": 1,
+        "miss": 5,
+        "wrong": 0,
+        "extra": 0,
+        "fp": 0
+      }
+    }
+  }
+}

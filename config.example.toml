@@ -1,0 +1,64 @@
+# ============================================================
+# 人格工坊配置（复制本文件为 config.toml 后按需修改）
+#
+# 工坊只管库侧：库路径、模型、记忆层、素材台、蒸馏台。
+# QQ 凭据、触发、限速等通道侧配置归通道器程序，不写在这里。
+# 库内 preferences.toml 的同名键会覆盖这里的值。
+# ============================================================
+
+[bot]
+# 人格库目录（相对本文件所在目录，或绝对路径）。
+# 首次启动时若该目录不存在，会自动建一个空库并登记，不用手动建。
+persona_dir = "personas/我的人格库"
+nickname = ""
+log_file = "data/gongfang.log"
+log_level = "INFO"
+
+[webui]
+enabled = true
+host = "127.0.0.1"
+port = 8780
+
+[llm]
+# 任何 OpenAI 兼容端点；api_key 也可用环境变量
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+api_key = ""
+api_key_env = "DEEPSEEK_API_KEY"
+temperature = 0.85
+max_tokens = 400
+# 截图转写（tools/shots.py）用的多模态模型。留空 = 跟着 model 走。
+# 同一个模型能收图时（deepseek-flash 实测可以）留空最省事；收不了图才填别的。
+vision_model = ""
+vision_max_tokens = 2000
+
+[owner]
+ids = []
+call_me = ""
+familiar_turns = 12
+carry_summary = true
+
+[memory]
+recent_turns = 12
+summarize_after = 40
+wiki_enabled = true
+wiki_budget = 800
+ingest_interval_hours = 0.0
+ingest_allow_new = true
+db_path = "data/sessions.db"
+
+[sim]
+dir = "sim"
+enabled = true
+candidates = 3
+card_count = 3
+card_max_tokens = 2200
+temperature = 1.0
+self_label = ""
+
+[distill]
+dir = "distill"
+enabled = true
+min_lines = 2
+max_lines = 24
+gap_paragraphs = 3

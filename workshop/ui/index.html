@@ -1,0 +1,3719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>人格工坊 控制台</title>
+<style>
+  /* ============================================================================
+     RHINE LAB / ARCHIVE — 视觉系统
+     暖白档案纸 + 橙强调 + 等宽字标 + 细线分栏 + 编号分册
+     旧变量（--bg/--panel/--line/--txt/--dim/--cyan…）继续保留，供 JS 内联引用
+     ========================================================================== */
+  :root{
+    --paper:#E8E4DB; --sheet:#F6F4EF; --sheet-2:#FBFAF7; --sheet-3:#FFFFFF;
+    --ink:#15191A; --ink-2:#4C5559; --ink-3:#707A7E;
+    --rule:#BFB9AB; --rule-soft:#D3CDBF;
+    --accent:#FF6A00; --accent-deep:#B44A00; --accent-wash:rgba(255,106,0,.08);
+
+    /* 兼容旧变量 */
+    --bg:var(--paper); --panel:var(--sheet); --panel2:var(--sheet-2);
+    --line:var(--rule-soft); --txt:var(--ink); --dim:var(--ink-3);
+    --cyan:var(--accent); --violet:#6F7C79;
+    --ok:#2C7A57; --warn:#A9701A; --err:#BE3B2B;
+    --mono:"JetBrains Mono","Cascadia Code",Consolas,"SF Mono",Menlo,monospace;
+    --sans:"Microsoft YaHei","微软雅黑","PingFang SC","Segoe UI",system-ui,sans-serif;
+  }
+  [data-theme="dark"]{
+    --paper:#0E1211; --sheet:#1A201E; --sheet-2:#222927; --sheet-3:#2A312E;
+    --ink:#EDF0EA; --ink-2:#BAC4BC; --ink-3:#8C988F;
+    --rule:#414C45; --rule-soft:#333E38;
+    --accent:#FF7A1A; --accent-deep:#FFA35C; --accent-wash:rgba(255,122,26,.13);
+    --violet:#8C9A94;
+    --ok:#4FBE8B; --warn:#D9A441; --err:#E36B57;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font:14px/1.6 var(--sans);
+    display:flex;flex-direction:column;height:100vh;overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* 纸面网格：疏、淡、只在上半部显影 */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.55;
+    background-image:
+      linear-gradient(var(--rule-soft) 1px,transparent 1px),
+      linear-gradient(90deg,var(--rule-soft) 1px,transparent 1px);
+    background-size:32px 32px;
+    -webkit-mask-image:linear-gradient(180deg,#000 0%,transparent 62%);
+    mask-image:linear-gradient(180deg,#000 0%,transparent 62%);
+  }
+  ::selection{background:var(--accent);color:#fff}
+
+  /* ---------- 顶部：品牌条 ---------- */
+  header{
+    /* 必须高于 main（同为 2 时后来者居上，会把向下溢出的下拉菜单切掉半截）。
+       20 够高，又低于 #hub(50) / .modal(80) / toast(99)，弹层该盖它还是能盖 */
+    position:relative;z-index:20;display:flex;align-items:center;gap:14px;
+    padding:13px 20px 12px;border-bottom:1px solid var(--rule);
+    background:var(--sheet);flex-wrap:wrap;
+  }
+  header::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--accent)}
+  header::after{
+    content:"";position:absolute;left:0;right:0;bottom:-1px;height:5px;pointer-events:none;opacity:.5;
+    background-image:repeating-linear-gradient(90deg,var(--rule) 0 1px,transparent 1px 14px);
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;padding-left:32px;position:relative}
+  .brand::before{
+    content:"RL";position:absolute;left:0;bottom:1px;width:24px;height:17px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--accent);color:#fff;font:9.5px/1 var(--mono);letter-spacing:.04em;
+  }
+  .brand b{font:600 12.5px/1.2 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink)}
+  .brand span{font:10px var(--mono);letter-spacing:.12em;color:var(--ink-3);text-transform:uppercase}
+  .pills{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;align-items:center}
+  .pill{
+    display:flex;align-items:center;gap:6px;padding:4px 9px;
+    border:1px solid var(--rule-soft);background:var(--sheet-2);
+    font:10px var(--mono);letter-spacing:.07em;color:var(--ink-3);text-transform:uppercase;
+  }
+  .pill b{color:var(--ink);font-weight:600;letter-spacing:.02em}
+  .dot{width:5px;height:5px;background:var(--ink-3);flex-shrink:0}
+  .dot.on{background:var(--ok);animation:pulse 2.4s infinite}
+  .dot.off{background:var(--err)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .conn-btn{
+    padding:5px 13px;border:1px solid var(--rule);background:transparent;
+    font:10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-2);cursor:pointer;transition:.14s;
+  }
+  .conn-btn:hover{border-color:var(--accent);color:var(--accent-deep);background:var(--accent-wash)}
+  .conn-btn.on{border-color:var(--err);color:var(--err);background:rgba(190,59,43,.06)}
+  .conn-btn.on:hover{border-color:var(--err);color:var(--err);background:rgba(190,59,43,.1)}
+  .conn-btn:disabled{opacity:.45;cursor:wait}
+  /* 有待收素材时顶栏那颗按钮亮一下，别的按钮不抢这个颜色 */
+  .conn-btn.hot{border-color:var(--accent);color:var(--accent-deep);background:var(--accent-wash)}
+
+  /* ---------- 一键归纳：结果条 ---------- */
+  /* 顶栏只放按钮，进度和结果放按钮下面这一条 —— 顶栏挤了会把布局顶歪 */
+  .ingest-bar{
+    /* z-index 必须低于 header：header 是独立层叠上下文，菜单的 z-index
+       只在本层内比大小，压不过外面这条结果条 —— 以前 6，把「只归纳素材」那行盖住了 */
+    position:relative;z-index:1;display:flex;align-items:center;gap:10px;
+    padding:7px 16px;border-bottom:1px solid var(--rule);
+    background:var(--sheet);font-size:12px;line-height:1.5;flex-wrap:wrap
+  }
+  .ingest-bar[hidden]{display:none}
+  .ingest-bar .ib-ico{font-family:var(--mono);font-weight:700}
+  .ingest-bar.run{border-bottom-color:var(--accent);background:var(--accent-wash)}
+  .ingest-bar.ok .ib-ico{color:var(--ok)}
+  .ingest-bar.err{border-bottom-color:var(--err)}
+  .ingest-bar.err .ib-ico{color:var(--err)}
+  .ingest-bar .ib-txt{color:var(--ink-2)}
+  .ingest-bar .ib-txt b{color:var(--ink);font-weight:600}
+  .ingest-bar .sp{flex:1}
+  .ingest-bar button{padding:2px 10px;font-size:11px;border:1px solid var(--rule);
+    background:var(--sheet-2);color:var(--ink-2);border-radius:2px;cursor:pointer}
+  .ingest-bar button:hover{border-color:var(--accent);color:var(--accent-deep)}
+  .ing-wrap{position:relative;display:inline-flex;align-items:center;gap:0}
+  .ing-caret{font-size:10px;color:var(--ink-3);padding:0 6px 0 2px;cursor:pointer;user-select:none}
+  .ing-caret:hover{color:var(--accent-deep)}
+  .ing-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:40;
+    background:var(--sheet);border:1px solid var(--rule);border-radius:3px;
+    box-shadow:0 8px 24px rgba(0,0,0,.14);padding:4px;min-width:136px}
+  .ing-menu[hidden]{display:none}
+  .ing-menu button{display:block;width:100%;text-align:left;padding:6px 10px;font-size:12px;
+    border:0;background:transparent;color:var(--ink-2);cursor:pointer;border-radius:2px}
+  .ing-menu button:hover{background:var(--sheet-2);color:var(--accent-deep)}
+  .ing-menu .sep{height:1px;background:var(--rule);margin:4px 2px}
+  .ingest-bar .ib-bad{color:var(--err);font-weight:600}
+  .ingest-bar .ib-warn{color:var(--warn)}
+  .ingest-bar .ib-dim{opacity:.55;margin-left:8px;font-size:12px}
+  .ib-spin{display:inline-block;width:9px;height:9px;border:2px solid var(--rule);
+    border-top-color:var(--accent);border-radius:50%;animation:ibspin .8s linear infinite}
+  @keyframes ibspin{to{transform:rotate(360deg)}}
+
+  /* ---------- 一键归纳：清单弹层 ---------- */
+  .modal-box.ingest-box{width:min(760px,94vw);max-height:84vh;display:flex;flex-direction:column}
+  .ingest-box .modal-body{overflow:auto;margin-top:4px;padding-right:4px}
+  .ing-item{border:1px solid var(--line);border-radius:3px;margin-bottom:12px;background:var(--panel2)}
+  .ing-item > .ing-head{
+    display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);
+    font-size:12px;font-weight:600;word-break:break-all
+  }
+  .ing-item > .ing-head .sp{flex:1}
+  .ing-tag{font:600 10px/1 var(--mono);padding:3px 6px;border-radius:2px;white-space:nowrap}
+  .ing-tag.ok{background:rgba(44,122,87,.14);color:var(--ok)}
+  .ing-tag.bad{background:rgba(190,59,43,.14);color:var(--err)}
+  .ing-tag.warn{background:rgba(169,112,26,.14);color:var(--warn)}
+  .ing-patch{padding:8px 10px;border-top:1px dashed var(--line-soft,var(--line));font-size:12px}
+  .ing-patch:first-of-type{border-top:none}
+  .ing-patch.bad{background:rgba(190,59,43,.06)}
+  .ing-line{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;color:var(--ink-2)}
+  .ing-line .where{color:var(--ink);font-weight:600}
+  .op{font:600 10px/1 var(--mono);padding:2px 5px;border-radius:2px;background:var(--accent-wash);
+    color:var(--accent-deep);text-transform:uppercase}
+  .op.merge{background:rgba(111,124,121,.16);color:var(--violet)}
+  .op.conflict{background:rgba(169,112,26,.16);color:var(--warn)}
+  .op.skip{background:rgba(111,124,121,.16);color:var(--dim)}
+  .ing-patch pre{
+    margin:7px 0 0;padding:7px 9px;background:var(--panel);border:1px solid var(--line);
+    border-radius:2px;white-space:pre-wrap;word-break:break-word;font:12px/1.7 var(--sans);color:var(--ink)
+  }
+  .ing-quote{margin-top:6px;color:var(--dim);font-size:11px;line-height:1.6;word-break:break-all}
+  .ing-quote::before{content:"证据 ";color:var(--ink-3)}
+  .ing-why{margin-top:3px;color:var(--dim);font-size:11px;line-height:1.6}
+  .ing-why::before{content:"理由 ";color:var(--ink-3)}
+  .ing-reject{margin-top:5px;color:var(--err);font-size:11px;line-height:1.6}
+  .ing-log{
+    font:11px/1.75 var(--mono);color:var(--ink-2);background:var(--panel);border:1px solid var(--line);
+    border-radius:2px;padding:8px 10px;max-height:46vh;overflow:auto;white-space:pre-wrap
+  }
+  .ing-log .warn{color:var(--warn)}
+  .ing-log .error{color:var(--err)}
+  .ing-empty{color:var(--dim);font-size:12px;padding:14px 2px;line-height:1.8}
+
+  /* ---------- 主框架 ---------- */
+  main{position:relative;z-index:2;display:grid;grid-template-columns:1fr 400px;flex:1;min-height:0}
+  .left{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-right:1px solid var(--rule)}
+  .tabs{
+    display:flex;gap:0;padding:0 14px;border-bottom:1px solid var(--rule);
+    background:var(--sheet);flex-wrap:wrap;flex-shrink:0;
+  }
+  .tab{
+    padding:10px 14px 9px;border:none;border-bottom:2px solid transparent;background:none;
+    color:var(--ink-3);cursor:pointer;font:11px var(--mono);letter-spacing:.12em;transition:.14s;
+  }
+  .tab:hover{color:var(--ink)}
+  .tab.active{color:var(--ink);border-bottom-color:var(--accent);font-weight:600;background:var(--sheet-2)}
+  .pane{flex:1;min-height:0;overflow-y:auto;padding:18px 20px;display:none;counter-reset:sec}
+  .pane.active{display:block}
+  #pane-chat.active{display:flex;flex-direction:column;overflow:hidden}
+
+  /* ---------- 日志面板 ---------- */
+  .logpane{display:flex;flex-direction:column;min-height:0;background:var(--sheet)}
+  .loghead{
+    display:flex;align-items:center;gap:8px;padding:10px 14px;
+    border-bottom:1px solid var(--rule);background:var(--sheet-2);
+    font:10px var(--mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:.14em;
+  }
+  .loghead .sp{flex:1}
+  #logs{flex:1;overflow-y:auto;padding:6px 0;font:11.5px/1.7 var(--mono)}
+  .ln{display:flex;gap:7px;padding:2px 12px 2px 9px;border-left:2px solid transparent}
+  .ln .t{color:var(--ink-3);flex-shrink:0;opacity:.75}
+  .ln .s{color:var(--ink-3);flex-shrink:0;min-width:52px;opacity:.9}
+  .ln .m{word-break:break-word;color:var(--ink-2)}
+  .ln.INFO{border-left-color:var(--accent)}
+  .ln.WARNING{border-left-color:var(--warn);background:rgba(169,112,26,.045)}
+  .ln.WARNING .m{color:var(--warn)}
+  .ln.ERROR{border-left-color:var(--err);background:rgba(190,59,43,.05)}
+  .ln.ERROR .m{color:var(--err)}
+  .ln.DEBUG .m{color:var(--ink-3)}
+
+  /* ---------- 卡片：编号分册 ---------- */
+  .card{
+    position:relative;background:var(--sheet);border:1px solid var(--rule-soft);
+    padding:16px 18px 17px;margin-bottom:14px;
+  }
+  .card::before{
+    content:"";position:absolute;left:-1px;top:-1px;width:13px;height:13px;
+    border-left:2px solid var(--accent);border-top:2px solid var(--accent);
+  }
+  .card h3{
+    font:600 10.5px/1.4 var(--mono);color:var(--ink-2);letter-spacing:.16em;text-transform:uppercase;
+    margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--rule-soft);
+  }
+  .card h3::before{
+    content:counter(sec,decimal-leading-zero);counter-increment:sec;
+    display:inline-block;margin-right:9px;padding:1px 5px 2px;
+    background:var(--accent);color:#fff;font:9.5px/1.5 var(--mono);letter-spacing:.06em;
+    vertical-align:1px;
+  }
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 18px}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font:10px var(--mono);letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase}
+  input,select,textarea{
+    width:100%;padding:7px 10px;border:1px solid var(--rule);
+    background:var(--sheet-2);color:var(--ink);font:12.5px var(--mono);
+    outline:none;transition:.14s;border-radius:0;
+  }
+  input:focus,select:focus,textarea:focus{
+    border-color:var(--accent);background:var(--sheet-3);box-shadow:0 0 0 2px var(--accent-wash);
+  }
+  input[type=checkbox]{width:auto;accent-color:var(--accent)}
+  /* 只读项（启动库）：一眼看出这不是拿手改的 */
+  input:disabled{background:var(--sheet);color:var(--ink-2);border-style:dashed;cursor:not-allowed}
+  input[type=file]{padding:0;border:none;background:none;font:11px var(--mono);color:var(--ink-3)}
+  input[type=file]::file-selector-button{
+    padding:5px 12px;margin-right:9px;border:1px solid var(--rule);background:var(--sheet);
+    color:var(--ink-2);font:10.5px var(--mono);letter-spacing:.08em;cursor:pointer;border-radius:0;
+    transition:.14s;
+  }
+  input[type=file]::file-selector-button:hover{
+    border-color:var(--accent);color:var(--accent-deep);background:var(--accent-wash);
+  }
+  .hint{font:11px/1.45 var(--sans);color:var(--ink-3)}
+  .row{display:flex;align-items:center;gap:9px}
+  .row input,.row select{flex:1;min-width:0}
+  button{
+    padding:7px 15px;border:1px solid var(--rule);background:var(--sheet-2);
+    color:var(--ink-2);cursor:pointer;font:12px var(--sans);transition:.14s;
+    white-space:nowrap;flex-shrink:0;border-radius:0;
+  }
+  button:hover{border-color:var(--accent);color:var(--accent-deep);background:var(--accent-wash)}
+  button.primary{
+    background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;letter-spacing:.05em;
+  }
+  button.primary:hover{background:var(--accent-deep);border-color:var(--accent-deep);color:#fff}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .empty{color:var(--ink-3);font:11.5px var(--mono);text-align:center;padding:34px 10px;letter-spacing:.14em;margin:auto 0;text-transform:uppercase}
+
+  /* ---------- 对话气泡 ---------- */
+  .bubble{padding:11px 14px;margin-bottom:10px;max-width:82%;white-space:pre-wrap;word-break:break-word;border-radius:0}
+  .bubble.me{align-self:flex-end;margin-left:auto;background:var(--accent-wash);border:1px solid rgba(255,106,0,.32);border-right:2px solid var(--accent)}
+  .bubble.bot{background:var(--sheet-2);border:1px solid var(--rule-soft);border-left:2px solid var(--rule)}
+  #chatlog{display:flex;flex-direction:column;flex:1;min-height:80px;overflow-y:auto;padding:4px 2px;margin-bottom:12px}
+  details{border:1px solid var(--rule-soft);padding:9px 12px;margin-top:9px;background:var(--sheet-2)}
+  details summary{cursor:pointer;font:10.5px var(--mono);letter-spacing:.06em;color:var(--ink-3);outline:none;text-transform:uppercase}
+  details[open] summary{margin-bottom:8px;color:var(--accent-deep)}
+  pre{font:11px/1.65 var(--mono);color:var(--ink-2);white-space:pre-wrap;word-break:break-word;max-height:340px;overflow:auto}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;font:10px var(--mono);letter-spacing:.05em;color:var(--ink-3);margin-top:8px;text-transform:uppercase}
+  .meta b{color:var(--ink-2);font-weight:600}
+
+  .bar{height:3px;background:var(--rule-soft);overflow:hidden;margin:8px 0 4px}
+  .bar i{display:block;height:100%;background:var(--accent);transition:width .4s}
+  .pages{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .tag{font:9.5px var(--mono);padding:2px 8px;border:1px solid var(--rule);color:var(--ink-3);letter-spacing:.07em;text-transform:uppercase}
+  .tag.ok{color:var(--ok);border-color:rgba(44,122,87,.4);background:rgba(44,122,87,.06)}
+  .tag.no{color:var(--ink-3);opacity:.7}
+  .shot{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--rule-soft);font:11.5px var(--mono)}
+  .shot:last-child{border-bottom:0}
+  .shot b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);font-weight:400}
+  .shot i{color:var(--ink-3);font-style:normal;font-size:10.5px;flex:none;max-width:44%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .shot .tag{flex:none}
+  .toast{
+    position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+    padding:10px 18px;background:var(--sheet-3);border:1px solid var(--rule);
+    border-left:3px solid var(--accent);
+    font:12px var(--sans);color:var(--ink);opacity:0;transition:.25s;pointer-events:none;z-index:99;max-width:76vw;
+    box-shadow:0 12px 30px rgba(21,25,26,.14);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.err{border-left-color:var(--err);color:var(--err)}
+  .toast.ok{border-left-color:var(--ok);color:var(--ok)}
+
+  /* ---------- 素材台 ---------- */
+  .sim-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:12px}
+  .sim-card{border:1px solid var(--rule-soft);padding:11px 12px;background:var(--sheet-2);cursor:pointer;transition:.15s;position:relative}
+  .sim-card:hover{border-color:var(--accent);box-shadow:inset 2px 0 0 var(--accent)}
+  .sim-card b{display:block;font-size:13px;margin-bottom:7px;color:var(--ink);padding-right:64px;font-weight:600}
+  .sim-card .cat{float:right;font:9.5px var(--mono);color:var(--accent-deep);border:1px solid rgba(255,106,0,.4);padding:1px 6px;letter-spacing:.06em;text-transform:uppercase}
+  .sim-card p{font-size:11.5px;color:var(--ink-2);line-height:1.55;margin-top:3px}
+  .sim-card em{color:var(--ink-3);font-style:normal}
+  .sim-card .save{margin-top:9px;padding:3px 9px;font-size:11px;color:var(--ink-3)}
+  .sim-card .save:hover{color:var(--accent-deep);border-color:var(--accent)}
+  .sim-lib{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .lib-item{display:flex;align-items:center;gap:7px;border:1px solid var(--rule-soft);padding:4px 9px;background:var(--sheet-2);font-size:12px;cursor:pointer;transition:.15s}
+  .lib-item:hover{border-color:var(--accent)}
+  .lib-item b{font-weight:600;color:var(--ink)}
+  .lib-item .use{font:9.5px var(--mono);color:var(--ink-3);letter-spacing:.06em}
+  .lib-item .x{color:var(--ink-3);padding:0 2px;font-size:13px}
+  .lib-item .x:hover{color:var(--err)}
+  .sim-log{max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding:10px 2px;margin-top:10px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+  .sim-line{display:flex;gap:9px;font-size:13px;line-height:1.6}
+  .sim-line .who{font:10px var(--mono);color:var(--ink-3);min-width:58px;text-align:right;padding-top:7px;flex-shrink:0;letter-spacing:.06em;text-transform:uppercase}
+  .sim-line .txt{flex:1;background:var(--sheet-2);border:1px solid var(--rule-soft);padding:8px 11px;white-space:pre-wrap;word-break:break-word}
+  .sim-line.self .txt{background:var(--accent-wash);border-color:rgba(255,106,0,.3)}
+  .sim-line .src{font:9.5px var(--mono);color:var(--ink-3);margin-left:8px;letter-spacing:.05em}
+  .sim-line .edit{font:9.5px var(--mono);color:var(--ink-3);cursor:pointer;align-self:center;padding:2px 6px;flex-shrink:0;opacity:.35;transition:.15s;letter-spacing:.06em}
+  .sim-line:hover .edit{opacity:1}
+  .sim-line .edit:hover{color:var(--accent-deep);background:var(--accent-wash)}
+  .sim-line .txt.editing{outline:1px solid var(--accent);background:var(--sheet-3);cursor:text;min-height:34px}
+  .sim-cand{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+  .cand-head{font:9.5px var(--mono);color:var(--ink-3);margin-bottom:1px;letter-spacing:.1em;text-transform:uppercase}
+  .cand{border:1px solid var(--rule-soft);padding:9px 12px;cursor:pointer;background:var(--sheet-2);font-size:13px;line-height:1.55;transition:.15s;white-space:pre-wrap;position:relative;padding-right:44px}
+  .cand:hover{border-color:var(--accent);background:var(--accent-wash)}
+  .cand .idx{font:9.5px var(--mono);color:var(--accent-deep);margin-right:8px}
+  .cand .pen{position:absolute;right:9px;top:8px;font:9.5px var(--mono);color:var(--ink-3);padding:2px 6px}
+  .cand .pen:hover{color:var(--accent-deep);background:var(--accent-wash)}
+  .cand.editing{cursor:default;border-color:var(--accent);padding-right:12px}
+  .cand.editing:hover{background:var(--sheet-2)}
+  .cand-input{width:100%;background:var(--sheet-3);border:1px solid var(--accent);color:var(--ink);padding:8px 10px;font:13px/1.55 inherit;resize:vertical;min-height:40px;margin-top:4px}
+  .cand.wait{color:var(--ink-3);cursor:default}
+  .cand.wait:hover{border-color:var(--rule-soft);background:var(--sheet-2)}
+  .outbox{margin-top:12px;border:1px solid rgba(44,122,87,.4);padding:11px 13px;background:rgba(44,122,87,.05);border-left:3px solid var(--ok)}
+  .outbox .path{font:11px var(--mono);color:var(--ok);word-break:break-all}
+
+  /* ---- 素材台：条件摊开可改 ---- */
+  .sim-card .fields{margin-top:2px}
+  .fr{display:grid;grid-template-columns:38px 1fr;gap:3px 8px;font-size:11.5px;line-height:1.55}
+  .fr em{font:9.5px var(--mono);color:var(--ink-3);font-style:normal;padding-top:2px;letter-spacing:.04em}
+  .fr span{color:var(--ink-2);word-break:break-word}
+  .fr span.warn{color:var(--warn)}
+  .sim-card .op{font-size:12px;color:var(--ink-2);margin-top:5px;line-height:1.55}
+  .sim-card .op i{font:9px var(--mono);color:var(--ink-3);font-style:normal;margin-left:6px}
+  .cf{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+  .cfi{display:flex;flex-direction:column;gap:3px}
+  .cfi>span{font:9.5px var(--mono);color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+  .cf input,.cf select,.cf textarea{padding:5px 8px;font-size:12px}
+  .cf textarea{line-height:1.5;resize:vertical}
+  .cf2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .sim-card.editing{cursor:default;background:var(--sheet-3);border-color:var(--accent);box-shadow:inset 2px 0 0 var(--accent),0 0 0 2px var(--accent-wash)}
+  .sim-card.editing:hover{box-shadow:inset 2px 0 0 var(--accent),0 0 0 2px var(--accent-wash)}
+  .mini{padding:4px 10px;font-size:11.5px}
+  .lib-editor{flex:1 0 100%;border:1px solid var(--accent);padding:11px 12px;background:var(--sheet-3);margin-top:4px}
+  .condbar{border:1px solid var(--rule-soft);padding:10px 12px;background:var(--sheet-2);margin-bottom:2px}
+  .condbar.on{border-color:var(--accent);background:var(--sheet-3)}
+  .condbar .head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}
+  .condbar .head b{font:10px var(--mono);color:var(--ink-3);font-weight:600;letter-spacing:.1em;text-transform:uppercase}
+  .condbar .head .act{cursor:pointer;font:9.5px var(--mono);color:var(--ink-3);padding:2px 7px;border:1px solid var(--rule-soft);letter-spacing:.06em}
+  .condbar .head .act:hover{color:var(--accent-deep);border-color:var(--accent)}
+
+  /* ---- 素材台：对话逐句可改 ---- */
+  .sim-line .acts{display:flex;gap:1px;align-self:center;opacity:0;transition:.15s;flex-shrink:0}
+  .sim-line:hover .acts{opacity:1}
+  .sim-line .act{font:9.5px var(--mono);color:var(--ink-3);padding:2px 5px;cursor:pointer;white-space:nowrap;user-select:none;letter-spacing:.05em}
+  .sim-line .act:hover{color:var(--accent-deep);background:var(--accent-wash)}
+  .sim-line .act.del:hover{color:var(--err);background:rgba(190,59,43,.09)}
+  .insline{display:flex;justify-content:center;margin:-3px 0 5px}
+  .insline .plus{font:9px var(--mono);color:var(--ink-3);cursor:pointer;padding:1px 9px;border:1px dashed var(--rule);opacity:.5;transition:.15s;user-select:none;letter-spacing:.1em}
+  .insline:hover .plus{opacity:1;color:var(--accent-deep);border-color:var(--accent)}
+  .inscomp{border:1px solid var(--accent);padding:9px 11px;background:var(--sheet-3);margin:4px 0 8px}
+  .inscomp textarea{width:100%;padding:6px 9px;font-size:12.5px;line-height:1.55;resize:vertical}
+  .dropped{margin-top:8px;flex:1 0 100%}
+  .dropped summary{font:9.5px var(--mono)}
+  .dropped pre{max-height:180px;margin-top:6px}
+  @media(hover:none){.sim-line .acts{opacity:1}.insline .plus{opacity:.8}}
+
+  /* ---- 会话页 ---- */
+  .srow{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--rule-soft);margin-top:7px;cursor:pointer;flex-wrap:wrap;font-size:12px;background:var(--sheet-2);transition:.14s}
+  .srow:hover{border-color:var(--accent);box-shadow:inset 2px 0 0 var(--accent)}
+  .srow .sid{flex:1;min-width:170px;font:11px var(--mono);color:var(--ink-2);word-break:break-all}
+  .srow .scount{color:var(--ink-3);font-size:11px}
+  .srow .stime{color:var(--ink-3);font:9.5px var(--mono);letter-spacing:.04em}
+  .stag{font:9px var(--mono);color:var(--warn);border:1px solid rgba(169,112,26,.4);padding:1px 7px;white-space:nowrap;letter-spacing:.06em;text-transform:uppercase}
+  .stag.ok{color:var(--ok);border-color:rgba(44,122,87,.4)}
+  .sacts{display:flex;gap:2px}
+  .sacts .act{font:9.5px var(--mono);color:var(--ink-3);padding:2px 5px;cursor:pointer;user-select:none;white-space:nowrap}
+  .sacts .act:hover{color:var(--accent-deep);background:var(--accent-wash)}
+  .sacts .act.del:hover{color:var(--err);background:rgba(190,59,43,.09)}
+  .sview{margin-top:10px}
+  .sview .slog{margin-top:8px;max-height:420px;overflow-y:auto;border-top:1px solid var(--rule);padding-top:8px;display:flex;flex-direction:column;gap:8px}
+  .mline{display:flex;gap:9px;font-size:12.5px;line-height:1.55}
+  .mline .mwho{flex-shrink:0;width:34px;font:9.5px var(--mono);color:var(--ink-3);padding-top:3px;letter-spacing:.05em}
+  .mline .mtxt{flex:1;color:var(--ink-2);white-space:pre-wrap;word-break:break-word}
+  .mline .mts{flex-shrink:0;font:9px var(--mono);color:var(--ink-3);padding-top:3px}
+  .mrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .mchip{font:10px var(--mono);color:var(--ink-2);background:var(--sheet-2);border:1px solid var(--rule-soft);
+    padding:3px 9px;cursor:pointer;user-select:none;white-space:nowrap;letter-spacing:.04em;
+    max-width:190px;overflow:hidden;text-overflow:ellipsis;transition:.14s}
+  .mchip:hover{color:var(--accent-deep);border-color:var(--accent)}
+  .mchip.on{color:#fff;background:var(--accent);border-color:var(--accent);font-weight:600}
+  .mchip b{font-weight:600;opacity:.7;margin-left:4px}
+  .sumbox{margin-top:9px;border:1px solid rgba(44,122,87,.4);background:rgba(44,122,87,.05);padding:9px 11px;border-left:3px solid var(--ok)}
+  .sumbox b{font:9.5px var(--mono);color:var(--ok);font-weight:600;letter-spacing:.1em;text-transform:uppercase}
+  .sumbox pre{margin-top:6px;max-height:140px}
+
+  /* ---- 蒸馏页 ---- */
+  .bookrow{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--rule-soft);margin-top:7px;cursor:pointer;flex-wrap:wrap;font-size:12px;background:var(--sheet-2);transition:.14s}
+  .bookrow:hover,.bookrow.on{border-color:var(--accent);background:var(--accent-wash);box-shadow:inset 2px 0 0 var(--accent)}
+  .bookrow b{font-weight:600;color:var(--ink)}
+  .bookrow .bmeta{color:var(--ink-3);font:10px var(--mono);letter-spacing:.05em}
+  .ds-seg{border:1px solid var(--rule-soft);padding:11px 12px;margin-top:9px;background:var(--sheet-2)}
+  .ds-seg .head{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+  .ds-seg .head b{font-size:12.5px;color:var(--ink);font-weight:600}
+  .ds-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0}
+  .ds-fields input,.ds-fields select{font-size:11.5px;padding:4px 7px}
+  .ds-line{display:flex;gap:8px;padding:3px 0;font-size:12.5px;line-height:1.55;align-items:flex-start}
+  .ds-line .who{flex-shrink:0;min-width:64px;font:9.5px var(--mono);color:var(--ink-3);padding-top:4px;letter-spacing:.05em}
+  .ds-line .who.self{color:var(--accent-deep)}
+  .ds-line .txt{flex:1;white-space:pre-wrap;word-break:break-word;color:var(--ink-2)}
+  .ds-line .guess{font:9px var(--mono);color:var(--warn);border:1px solid rgba(169,112,26,.4);padding:0 5px;margin-left:4px;letter-spacing:.06em}
+  /* 远推：前面已经连着猜了六步以上，一整串里只要错一句，这句大概率跟着错 */
+  .ds-line .guess.deep{color:var(--bad);border-color:rgba(200,60,60,.55);background:rgba(200,60,60,.08)}
+  .ds-line .ops{display:flex;gap:1px;opacity:0;transition:.15s}
+  .ds-line:hover .ops{opacity:1}
+  .ds-line .op{font:9.5px var(--mono);color:var(--ink-3);padding:2px 5px;cursor:pointer;user-select:none;white-space:nowrap}
+  .ds-line .op:hover{color:var(--accent-deep);background:var(--accent-wash)}
+  .ds-line .op.del:hover{color:var(--err);background:rgba(190,59,43,.09)}
+  .ds-chaps{display:flex;flex-wrap:wrap;gap:5px;max-height:176px;overflow-y:auto;margin-top:7px;padding:2px 4px 2px 0}
+  .dschap{display:flex;align-items:center;gap:5px;font:10px var(--mono);color:var(--ink-3);border:1px solid var(--rule-soft);padding:3px 7px;cursor:pointer;max-width:210px;user-select:none;transition:.14s}
+  .dschap:hover{border-color:var(--accent);color:var(--ink-2)}
+  .dschap.on{color:var(--accent-deep);border-color:var(--accent);background:var(--accent-wash)}
+  .dschap .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ds-react{border:1px solid var(--rule);padding:9px 10px;margin-top:9px;background:var(--sheet-3);border-left:3px solid var(--accent)}
+  .ds-react.blocked{border-color:var(--err);border-left-color:var(--err);background:rgba(190,59,43,.05)}
+  .ds-react .head{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+  .ds-react .head b{font-size:12px;color:var(--ink);font-weight:600}
+  .rf{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:7px}
+  .rff{display:flex;flex-direction:column;gap:3px}
+  .rff.wide{grid-column:span 2}
+  .rff span{font:9px var(--mono);color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+  .rff input,.rff select{font-size:11.5px;padding:3px 6px}
+  @media(max-width:1080px){.rf{grid-template-columns:1fr 1fr}.rff.wide{grid-column:span 2}}
+  @media(max-width:1080px){.ds-fields{grid-template-columns:1fr 1fr}}
+
+  /* ---------- 滚动条 ---------- */
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:var(--rule);border-radius:0}
+  ::-webkit-scrollbar-thumb:hover{background:var(--ink-3)}
+  ::-webkit-scrollbar-track{background:transparent}
+  @media(max-width:1080px){main{grid-template-columns:1fr}.logpane{border-top:1px solid var(--rule);max-height:38vh}}
+
+  /* ---------- 总端：人格库目录 ---------- */
+  body.hub-mode > header,body.hub-mode > main{display:none}
+  #hub header{position:sticky;top:0;z-index:3;flex-shrink:0}
+  #hub{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;overflow:auto;background:var(--paper)}
+  body.hub-mode #hub{display:flex}
+  .hub-wrap{position:relative;z-index:2;padding:34px 28px 60px;max-width:1240px;width:100%;margin:0 auto}
+  .hub-intro{padding-bottom:16px;border-bottom:1px solid var(--rule)}
+  .hub-intro h1{font:600 19px/1.3 var(--sans);letter-spacing:.06em;margin-bottom:7px}
+  .hub-intro h1::before{
+    content:"ARCHIVE / 人格库";display:block;font:9.5px var(--mono);letter-spacing:.22em;
+    color:var(--accent-deep);margin-bottom:9px;text-transform:uppercase;
+  }
+  .hub-intro p{color:var(--ink-2);font-size:12.5px;max-width:760px;line-height:1.7}
+  .hub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:20px;counter-reset:pc}
+  .pcard{
+    position:relative;background:var(--sheet);border:1px solid var(--rule-soft);
+    padding:16px 17px;display:flex;flex-direction:column;gap:10px;transition:.16s;cursor:pointer;
+  }
+  .pcard::before{
+    content:"";position:absolute;left:-1px;top:-1px;width:13px;height:13px;
+    border-left:2px solid var(--rule);border-top:2px solid var(--rule);transition:.16s;
+  }
+  .pcard::after{
+    content:counter(pc,decimal-leading-zero);counter-increment:pc;
+    position:absolute;right:12px;top:11px;font:9.5px var(--mono);color:var(--ink-3);letter-spacing:.08em;
+  }
+  .pcard:hover{border-color:var(--accent);box-shadow:0 8px 22px rgba(21,25,26,.1)}
+  .pcard:hover::before{border-color:var(--accent)}
+  .pcard.on{border-color:var(--accent);background:var(--sheet-3);box-shadow:inset 2px 0 0 var(--accent)}
+  .pcard.on::before{border-color:var(--accent);width:20px;height:20px}
+  .pcard.arch{opacity:.5}
+  .pcard h3{font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:26px}
+  .pcard .sum{font-size:12px;color:var(--ink-2);min-height:34px;line-height:1.6;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+  .pcard .meta{display:flex;flex-wrap:wrap;gap:6px;font:9.5px var(--mono);color:var(--ink-3);letter-spacing:.05em}
+  .pcard .meta span{border:1px solid var(--rule-soft);padding:2px 7px;background:var(--sheet-2);text-transform:uppercase}
+  .pcard .acts{display:flex;gap:8px;margin-top:2px}
+  .pcard .acts button{
+    flex:1;padding:6px 0;font:10px var(--mono);letter-spacing:.08em;
+    border:1px solid var(--rule);background:var(--sheet-2);color:var(--ink-2);cursor:pointer;transition:.14s;
+  }
+  .pcard .acts button.go{border-color:var(--accent);background:var(--accent);color:#fff;font-weight:600}
+  .pcard .acts button:hover{border-color:var(--accent);color:var(--accent-deep)}
+  .pcard .acts button.go:hover{background:var(--accent-deep);border-color:var(--accent-deep);color:#fff}
+  .badge{font:9px var(--mono);padding:2px 7px;letter-spacing:.08em;text-transform:uppercase;
+    border:1px solid rgba(44,122,87,.45);color:var(--ok);background:rgba(44,122,87,.07)}
+  .badge.dim{border-color:var(--rule);color:var(--ink-3);background:var(--sheet-2)}
+  .badge.lib{border-color:rgba(111,124,121,.5);color:var(--violet);background:rgba(111,124,121,.08)}
+  .pcard.new{border-style:dashed;border-color:var(--rule);align-items:center;justify-content:center;text-align:center;min-height:200px;color:var(--ink-3);gap:6px}
+  .pcard.new::before,.pcard.new::after{display:none}
+  .pcard.new:hover{color:var(--accent-deep);border-color:var(--accent);background:var(--accent-wash)}
+  .pcard.new .plus{font-size:24px;line-height:1;font-weight:300}
+  .hub-bar{display:flex;align-items:center;gap:10px;margin-top:24px;padding-top:14px;border-top:1px solid var(--rule);
+    font:10px var(--mono);color:var(--ink-3);flex-wrap:wrap;letter-spacing:.06em}
+  .hub-bar .lnk{color:var(--ink-2);cursor:pointer;border-bottom:1px dashed var(--rule)}
+  .hub-bar .lnk:hover{color:var(--accent-deep);border-bottom-color:var(--accent)}
+
+  /* ---------- 弹层 ---------- */
+  .modal{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;
+    background:rgba(12,14,13,.55);backdrop-filter:blur(3px)}
+  .modal.on{display:flex}
+  .modal-box{width:min(520px,92vw);background:var(--sheet);border:1px solid var(--rule);
+    padding:22px 22px 18px;box-shadow:0 24px 60px rgba(12,14,13,.28);position:relative}
+  .modal-box::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--accent)}
+  .modal-box h3{font:600 14px/1.4 var(--sans);letter-spacing:.06em;margin-bottom:5px}
+  .modal-box .sub{color:var(--ink-2);font-size:12px;margin-bottom:16px;line-height:1.7}
+  .field{margin-bottom:12px}
+  .field label{display:block;font:9.5px var(--mono);letter-spacing:.1em;color:var(--ink-3);margin-bottom:5px;text-transform:uppercase}
+  .field input,.field textarea{width:100%;padding:8px 10px;border:1px solid var(--rule);
+    background:var(--sheet-2);color:var(--ink);font:13px/1.5 var(--sans);outline:none;resize:vertical}
+  .field input:focus,.field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-wash)}
+  .field .tip{font-size:11px;color:var(--ink-3);margin-top:4px}
+  .modal-acts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+  .modal-acts button{padding:7px 16px;border:1px solid var(--rule);
+    background:var(--sheet-2);color:var(--ink-2);cursor:pointer;font:11px var(--mono);letter-spacing:.08em}
+  .modal-acts button.primary{border-color:var(--accent);background:var(--accent);color:#fff;font-weight:600}
+  .modal-acts button:disabled{opacity:.5;cursor:wait}
+  .hub-err{color:var(--err);font:11px var(--mono);margin-top:10px;display:none}
+
+</style>
+<script>
+/* 主题预置：必须早于首屏绘制，否则暗色用户会先看到一帧亮底 */
+(function(){ try { if (localStorage.getItem('qab-theme') === 'dark') {
+  document.documentElement.setAttribute('data-theme', 'dark');
+} } catch(e){} })();
+</script>
+</head>
+<body>
+<div id="hub">
+  <header>
+    <div class="brand"><b>人格工坊</b><span>人格库总端</span></div>
+    <div class="pills">
+      <button class="conn-btn theme-btn" type="button">◐ LIGHT</button>
+      <div class="pill"><i class="dot" id="h-dot"></i><span id="h-conn">检测中…</span></div>
+      <div class="pill">运行 <b id="h-active">-</b></div>
+    </div>
+  </header>
+  <div class="hub-wrap">
+    <div class="hub-intro">
+      <h1>选择人格库</h1>
+      <p>身份母本、wiki、会话记录都跟着库走 —— 一个库就是一个完整的人。素材台与蒸馏是全局池，不分库。</p>
+    </div>
+    <div class="hub-grid" id="hub-grid"><div class="empty">加载中…</div></div>
+    <div class="hub-err" id="hub-err"></div>
+    <div class="hub-bar">
+      <span id="hub-count">-</span>
+      <span>·</span>
+      <span class="lnk" id="hub-import">导入已有目录</span>
+      <span>·</span>
+      <span class="lnk" id="hub-toggle-arch">显示已归档</span>
+      <span>·</span>
+      <span>归档只从总端隐藏，文件不动</span>
+    </div>
+  </div>
+
+  <div class="modal" id="import-modal">
+    <div class="modal-box">
+      <h3>导入已有的人格库</h3>
+      <div class="sub">填目录的完整路径。只登记，不改动里面任何已有文件；缺 <code>data/</code> 与
+        <code>preferences.toml</code> 时会补上，免得跟别的库共用同一个会话库。</div>
+      <div class="field">
+        <label>目录路径</label>
+        <input id="ip-path" placeholder="personas/我的人格库" autocomplete="off">
+      </div>
+      <div class="hub-err" id="ip-err"></div>
+      <div class="modal-acts">
+        <button id="ip-cancel">取消</button>
+        <button class="primary" id="ip-ok">导入</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="new-modal">
+    <div class="modal-box">
+      <h3>新建人格库</h3>
+      <div class="sub">生成一套空骨架：agents / index / wiki 八页 / raw 身份母本 / data 会话区。等你塞素材。</div>
+      <div class="field">
+        <label>显示名</label>
+        <input id="np-name" placeholder="例如：小小白" autocomplete="off">
+        <div class="tip">总端卡片与标题用的名字</div>
+      </div>
+      <div class="field">
+        <label>目录名</label>
+        <input id="np-dir" placeholder="留空则与显示名相同" autocomplete="off">
+        <div class="tip">落在 personas/ 下。建好后就是注册表里的 id</div>
+      </div>
+      <div class="field">
+        <label>一句话人设（可留空）</label>
+        <textarea id="np-summary" rows="2" placeholder="她是谁，一句话。留空就先空着，之后写身份母本"></textarea>
+      </div>
+      <div class="hub-err" id="np-err"></div>
+      <div class="modal-acts">
+        <button id="np-cancel">取消</button>
+        <button class="primary" id="np-ok">创建并进入</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="brand"><b>人格工坊</b><span id="ver">console</span></div>
+  <div class="pills">
+    <button class="conn-btn theme-btn" type="button">◐ LIGHT</button>
+    <button class="conn-btn" id="btn-hub">人格库</button>
+    <span class="ing-wrap">
+      <button class="conn-btn" id="btn-ingest" title="按 agents.md 归纳 raw 里还没收的素材">一键归纳</button>
+      <span class="ing-caret" id="ing-caret" title="更多">▾</span>
+      <div class="ing-menu" id="ing-menu" hidden>
+        <button data-act="raw">只归纳素材</button>
+        <button data-act="memory">整理记忆</button>
+        <button data-act="both">两个都跑</button>
+      </div>
+    </span>
+    <button class="conn-btn" id="btn-save-top">保存配置</button>
+    <div class="pill">模式 <b id="p-chan">试聊</b></div>
+    <div class="pill">模型 <b id="p-model">-</b></div>
+    <div class="pill">查看 <b id="p-lib">-</b> · wiki <b id="p-persona">-</b></div>
+    <div class="pill">消息 <b id="p-msgs">0</b></div>
+  </div>
+</header>
+
+<!-- 一键归纳的结果条：只在跑或刚跑完时出现，平时不占地方 -->
+<div class="ingest-bar" id="ingest-bar" hidden>
+  <span class="ib-ico" id="ib-ico">◐</span>
+  <span class="ib-txt" id="ib-txt"></span>
+  <span class="sp"></span>
+  <button id="ib-open">看清单</button>
+  <button id="ib-undo" hidden>撤回这一轮</button>
+  <button id="ib-close" title="收起">✕</button>
+</div>
+
+<div class="modal" id="ingest-modal">
+  <div class="modal-box ingest-box">
+    <h3>一键归纳 · 这一轮改了什么</h3>
+    <div class="sub" id="ing-sub">正在读…</div>
+    <div class="modal-body" id="ing-body"></div>
+    <div class="modal-acts">
+      <button id="ing-undo">撤回这一轮</button>
+      <button class="primary" id="ing-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<main>
+  <div class="left">
+    <div class="tabs">
+      <div class="tab active" data-tab="chat">试聊</div>
+      <div class="tab" data-tab="config">配置</div>
+      <div class="tab" data-tab="persona">人格库</div>
+      <div class="tab" data-tab="identity">身份</div>
+      <div class="tab" data-tab="sim">素材台</div>
+      <div class="tab" data-tab="shots">截图</div>
+      <div class="tab" data-tab="distill">蒸馏</div>
+      <div class="tab" data-tab="sessions">会话</div>
+    </div>
+
+    <div class="pane active" id="pane-chat">
+      <div id="chatlog"><div class="empty" id="chat-empty">还没有对话 · 输入一句话，看它怎么接</div></div>
+      <div class="card">
+        <div class="row">
+          <input id="chat-input" placeholder="说一句话，看看它怎么接（Enter 发送）" autocomplete="off">
+          <button class="primary" id="btn-send">发送</button>
+        </div>
+        <div class="row" style="margin-top:10px;justify-content:space-between">
+          <label class="hint" style="display:flex;align-items:center;gap:7px;cursor:pointer">
+            <input type="checkbox" id="remember"> 记住上下文（多轮）
+          </label>
+          <button id="btn-clear-chat">清空对话</button>
+        </div>
+      </div>
+      <div class="hint">这里不连 QQ，直接验证人格与上下文。展开「注入的提示词」能看到本轮到底喂了什么。</div>
+    </div>
+
+    <div class="pane" id="pane-config">
+      <div id="config-body"></div>
+      <div class="row" style="position:sticky;bottom:0;padding:12px 0;background:linear-gradient(180deg,transparent,var(--bg) 35%)">
+        <button class="primary" id="btn-save">保存配置</button>
+        <span class="hint" id="save-hint"></span>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-persona">
+      <div class="card">
+        <h3>总括段（每轮注入）</h3>
+        <pre id="persona-summary" style="max-height:220px">加载中…</pre>
+        <div class="bar"><i id="persona-bar" style="width:0%"></i></div>
+        <div class="meta"><span id="persona-ratio">-</span><span id="persona-root"></span></div>
+      </div>
+      <div class="card">
+        <h3>wiki 页</h3>
+        <div class="pages" id="persona-pages"></div>
+        <div class="hint" style="margin-top:10px">未填充的页不会被注入。填 rule 时只要一半以上实质行不是占位符，就会生效。</div>
+      </div>
+      <div class="card">
+        <h3>路由表（情境 → 页面）</h3>
+        <pre id="persona-routes"></pre>
+      </div>
+      <div class="row"><button id="btn-reload-persona">重载人格库</button></div>
+    </div>
+
+    <div class="pane" id="pane-identity">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">身份母本</h3>
+          <div class="row">
+            <button id="btn-id-reload">重新读取</button>
+            <button class="primary" id="btn-id-save">保存母本</button>
+          </div>
+        </div>
+        <textarea id="id-text" spellcheck="false"
+          placeholder="第一次打开会给出七节骨架，写完点保存才落盘"
+          style="height:430px;margin-top:12px;line-height:1.75;font-size:12.5px;resize:vertical"></textarea>
+        <div class="meta">
+          <span>字数 <b id="id-chars">0</b></span>
+          <span>上次保存 <b id="id-saved">-</b></span>
+          <span>历史备份 <b id="id-hist">0</b></span>
+          <span>已写 <b id="id-fill">0/7</b> 节</span>
+        </div>
+        <div class="hint" style="margin-top:9px" id="id-path">-</div>
+        <div class="hint" style="margin-top:6px">
+          你唯一手写身份的地方，落在 raw/identity.md，其余人格库文件程序仍只读。
+          保存只是落盘；何时让 AI 归纳进 wiki/identity.md 由你决定，index 空着不影响这里。
+        </div>
+      </div>
+      <div class="card">
+        <h3>分节填充度</h3>
+        <div id="id-sections" class="pages"><div class="empty">加载中…</div></div>
+        <div class="hint" style="margin-top:10px">
+          带「缺」的节里还是占位符。七节写得越具体，后面生成的情境越贴着这个人——
+          抽象形容词约束不了情境，"她周三晚上固定去哪"才能。
+        </div>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-sessions">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h3 style="margin:0">会话</h3>
+          <button id="sess-refresh" style="padding:3px 10px;font-size:11.5px">刷新</button>
+        </div>
+        <div class="hint" style="margin-top:6px">
+          点一行展开内容。压缩把还没进摘要的旧消息折成一条摘要——原文不删，上下文改从摘要接；
+          删会把消息和摘要一起清掉，不可恢复。
+        </div>
+        <div id="session-list"></div>
+        <div id="session-view"></div>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-sim">
+      <div class="hint" style="margin-bottom:10px;padding:7px 10px;border:1px dashed var(--line);border-radius:8px">
+        <b style="color:var(--warn)">全局池</b> · 卡片库与草稿存在 <code>sim/</code>，不分人格库：
+        换库抽卡照样能抽到。只有「搬进 raw」那一步才落到具体某个库。
+        <span id="sim-label-tip"></span>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">生成反应卡</h3>
+          <div class="row">
+            <select id="sim-recent" style="width:auto;max-width:200px"><option value="">最近改过的稿…</option></select>
+            <select id="sim-stim" style="width:auto" title="不限就从八类里自己挑，几张之间不许重复">
+              <option value="">不限刺激</option>
+            </select>
+            <select id="sim-relation" style="width:auto" title="不限就让模型按母本的关系三档各挑一档">
+              <option value="">不限档位</option>
+              <option value="拥有者">拥有者</option>
+              <option value="熟人">熟人</option>
+              <option value="陌生人">陌生人</option>
+            </select>
+            <button class="primary" id="sim-gen">生成反应卡</button>
+            <!-- 「从库里抽」随卡片库一起挂起（2026-10-27）：drawFromLibrary 与几处
+                 .disabled 仍按这个 id 取它，节点删了会在顶层绑定处抛
+                 "Cannot set properties of null"，连带后面整个 boot 都不执行。
+                 所以留着、藏起来，跟 sim-lib-card 同一个处理方式。 -->
+            <button id="sim-draw" style="display:none">从库里抽</button>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:8px">
+          母本 <b id="sim-seed">-</b> · 只给母本和上面两个选择，一次 3 张。
+          没有场合、没有对方、没有开场白——这几样一律不会出现在成品里。
+        </div>
+        <div class="hint" id="sim-seed-tip" style="margin-top:4px"></div>
+        <div id="sim-cards" class="sim-cards">
+          <div class="empty">点「生成反应卡」：按母本推她会怎么回，一次 3 张</div>
+        </div>
+      </div>
+
+      <!-- 卡片库挂起（2026-10-27）：库里存的是情境卡，而情境卡这一层已经从流程里撤了。
+           节点留着是因为 renderLibrary / 抽卡那批函数还在往这几个 id 上写，删了会炸。 -->
+      <div class="card" id="sim-lib-card" style="display:none">
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">卡片库 <span class="tag" id="sim-lib-count">0</span></h3>
+          <span class="hint">已挂起</span>
+        </div>
+        <div id="sim-lib" class="sim-lib"></div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">反应卡</h3>
+          <span class="hint">选中上面一张改字段 · 成品里只有回应方式</span>
+        </div>
+        <div id="sim-cond" style="display:none"></div>
+        <div id="sim-react"></div>
+        <div id="sim-result"></div>
+
+        <!-- 对演整块已撤（2026-10-27）：模拟直接出反应卡，不再逐句挑。
+             节点保留是为了 renderSim 里那批 id 引用不炸，没有别的用途，后续可整块删掉。 -->
+        <div id="sim-play" style="display:none">
+          <div class="row">
+            <span class="hint">我在演</span>
+            <select id="sim-mode" style="width:auto">
+              <option value="other">对方</option>
+              <option value="self">她本人</option>
+            </select>
+            <button id="sim-undo">撤销</button>
+            <button class="primary" id="sim-save">收稿</button>
+          </div>
+          <div class="hint" id="sim-mode-tip"></div>
+          <div id="sim-log" class="sim-log"><div class="empty">先选一张情境卡</div></div>
+          <div id="sim-meta" class="meta"></div>
+          <div id="sim-cand" class="sim-cand"></div>
+          <div class="row">
+            <span class="hint" id="sim-who">你在说：对方</span>
+            <input id="sim-input" placeholder="你的台词（Enter 发送）" autocomplete="off" disabled>
+            <button id="sim-send" class="primary" disabled>发送</button>
+            <button id="sim-write" disabled>替对面写</button>
+          </div>
+          <div class="row"><input id="sim-note" placeholder="批注" autocomplete="off"></div>
+          <div class="hint" id="sim-tip"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>素材覆盖</h3>
+        <div id="sim-cov" class="pages"></div>
+        <div class="hint" id="sim-root" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-shots">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">截图入库</h3>
+          <div class="row">
+            <button id="btn-shots-refresh">刷新</button>
+            <button class="primary" id="btn-shots-run">转写待转的</button>
+          </div>
+        </div>
+        <div class="meta">
+          <span>待转 <b id="shots-pending">0</b></span>
+          <span>已转 <b id="shots-done">0</b></span>
+          <span>看图模型 <b id="shots-model">-</b></span>
+        </div>
+        <div class="bar"><i id="shots-bar" style="width:0%"></i></div>
+        <div class="hint" id="shots-path">扫 raw/assets/ …</div>
+        <div class="hint" id="shots-msg" style="margin-top:4px"></div>
+      </div>
+      <div class="card">
+        <h3>图片</h3>
+        <div id="shots-list"><div class="empty">加载中…</div></div>
+      </div>
+      <div class="hint">
+        转出来的稿一律带「审：未过」和「情境：—」，会被归纳闸门挡住。
+        去「人格库」核一遍：补上档位、把审改成「已过」，它才进队列。
+        图片本身留在 raw/assets/，不改名、不删除。
+      </div>
+    </div>
+
+    <div class="pane" id="pane-distill">
+      <div class="hint" style="margin-bottom:10px;padding:7px 10px;border:1px dashed var(--line);border-radius:8px">
+        <b style="color:var(--warn)">全局池</b> · 书库与成品 md 存在 <code>distill/</code>，不分人格库。
+        成品要进某个库，得手动拖进那个库的 <code>raw/</code>。
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">书库</h3>
+          <div class="row">
+            <input id="ds-file" type="file" accept=".txt,.md,text/plain" style="width:auto;max-width:230px">
+            <button class="primary" id="ds-import">导入</button>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:8px">
+          收 txt / md，自动认 UTF-8 与 GBK。原文存一份快照、之后不再改；成品落 distill/out/，raw 仍由你自己搬。
+        </div>
+        <div id="ds-books"><div class="empty">还没有书</div></div>
+        <div class="hint" id="ds-root" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">提取台词 <span class="tag" id="ds-book-name">未选书</span></h3>
+          <div class="row" style="flex-wrap:wrap">
+            <input id="ds-char" placeholder="角色名" style="width:110px" autocomplete="off">
+            <input id="ds-alias" placeholder="别名，逗号分隔（可留空）" style="width:190px" autocomplete="off">
+            <button class="primary" id="ds-run">提取台词</button>
+          </div>
+        </div>
+        <div id="ds-chap-wrap" style="margin-top:10px;display:none">
+          <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <span class="hint">提取范围 <b id="ds-chap-count">全部</b></span>
+            <div class="row" style="gap:6px">
+              <input id="ds-chap-from" type="number" min="1" placeholder="起" style="width:62px" title="从第几章（含）">
+              <input id="ds-chap-to" type="number" min="1" placeholder="止" style="width:62px" title="到第几章（含）">
+              <button class="mini" id="ds-chap-apply">按范围选</button>
+              <button class="mini" id="ds-chap-all">全选</button>
+              <button class="mini" id="ds-chap-none">清空</button>
+            </div>
+          </div>
+          <div id="ds-chap-list" class="ds-chaps"></div>
+        </div>
+
+        <div class="hint" id="ds-stats" style="margin-top:8px">先导入一本书，再点一下书名选中它</div>
+        <div class="hint" style="margin-top:4px">
+          提取是规则做的，不调模型：引号里的才算台词，认不出说话人的句子直接丢掉。
+          认人顺序是「线索句里有名字 → 段内只有一个人 → 同段承接 → 按轮次交替」，后面两种会标「推定」。
+          关系档导出时留空（写成 <code>情境：—｜…</code>），档位到素材台里划。
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">对话段 <span class="tag" id="ds-total">0</span></h3>
+          <div class="row">
+            <button id="ds-react-export">导出已审反应卡</button>
+            <button id="ds-export-all">全部导出</button>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:6px">
+          分类与情境可改；句子移上去能「换人 / 删」。导出的是素材台成品头，拖进 raw 就能 ingest；
+          想继续编排就「导进素材台」，想留着反复用就「收进卡片库」。
+          只想学「这类情绪怎么回」就转反应卡——它不带身份、关系和对白，过审后才导得出去。
+        </div>
+        <div id="ds-segs"><div class="empty">还没有提取结果</div></div>
+        <div class="hint" id="ds-out" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="logpane">
+    <div class="loghead">
+      <i class="dot on" style="background:var(--cyan);box-shadow:0 0 0 3px rgba(255,106,0,.15)"></i>
+      实时日志 <span class="sp"></span>
+      <button id="btn-scroll" style="padding:3px 9px;font-size:11px">跟随</button>
+    </div>
+    <div id="logs"></div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let logCursor = 0, follow = true, lastStatus = {};
+
+function toast(msg, kind){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + (kind || '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = 'toast ' + (kind || ''), 3200);
+}
+
+/* 当前查看的人格库。所有请求都带上它 —— 多标签页各看各的库不会互相串。
+   注意用 query 而不是自定义头：库 id 是中文目录名，HTTP 头只收 latin-1，塞不进去。 */
+const CUR = (new URLSearchParams(location.search).get('persona') || '').trim();
+
+function withPersona(path){
+  if(!CUR) return path;
+  return path + (path.indexOf('?') >= 0 ? '&' : '?') + 'persona=' + encodeURIComponent(CUR);
+}
+
+async function api(path, opts){
+  const o = Object.assign({}, opts || {});
+  o.headers = Object.assign({'Content-Type':'application/json'}, o.headers || {});
+  const r = await fetch(withPersona(path), o);
+  const txt = await r.text();
+  let data;
+  try { data = JSON.parse(txt); } catch(e) { throw new Error(txt.slice(0,200)); }
+  // 界面每次刷新都取最新，后端却要重启才换代码。这个组合最容易出「not found」，
+  // 直接说清是版本对不上，别让人以为是自己点错了。
+  if(r.status === 404 && data.error === 'not found'){
+    throw new Error('后端还是旧版本（没有 ' + path + ' 这个接口），关掉程序重新启动一次再试');
+  }
+  if(!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+  return data;
+}
+
+/* ---------- shots：截图入库 ---------- */
+/* 一次一张地转：批量请求会先撞 HTTP 超时，而且单张失败不该废掉整批。
+   转义用页面下面已有的 esc()，别在这儿再声明一个 —— 同名 const 会让整块脚本不执行。 */
+let SHOTS_BUSY = false;
+
+async function loadShots(){
+  try{
+    const d = await api('/api/shots/state');
+    const c = d.counts || {};
+    $('#shots-path').textContent = d.root ? d.root + ' · raw/assets/' : '';
+    $('#shots-pending').textContent = d.pending || 0;
+    $('#shots-done').textContent = c.done || 0;
+    $('#shots-model').textContent = d.model || '（没有可用模型）';
+
+    const box = $('#shots-list');
+    if(!d.items || !d.items.length){
+      box.innerHTML = '<div class="empty">raw/assets 里还没有图片</div>';
+    }else{
+      box.innerHTML = d.items.map(s => {
+        const cls = s.status === 'done' ? 'ok' : (s.status === 'new' ? '' : 'no');
+        const tail = s.md ? '→ ' + s.md : (s.reason || (Math.round(s.size / 1024) + 'KB'));
+        return '<div class="shot"><b title="' + esc(s.name) + '">' + esc(s.name) + '</b>'
+             + '<span class="tag ' + cls + '">' + esc(s.status_label) + '</span>'
+             + '<i title="' + esc(tail) + '">' + esc(tail) + '</i></div>';
+      }).join('');
+    }
+    if(d.warnings && d.warnings.length) $('#shots-msg').textContent = d.warnings.join('；');
+  }catch(e){
+    $('#shots-list').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  }
+}
+
+async function runShots(){
+  if(SHOTS_BUSY) return;
+  SHOTS_BUSY = true;
+  const btn = $('#btn-shots-run');
+  btn.disabled = true;
+  try{
+    const d = await api('/api/shots/state');
+    const todo = (d.items || []).filter(s => s.status === 'new' || s.status === 'lost');
+    if(!todo.length){ $('#shots-msg').textContent = '没有待转的图。'; return; }
+
+    let ok = 0, fail = 0;
+    for(let i = 0; i < todo.length; i++){
+      $('#shots-msg').textContent = '转写 ' + (i + 1) + '/' + todo.length + '：' + todo[i].name + ' …';
+      $('#shots-bar').style.width = (i / todo.length * 100) + '%';
+      try{
+        const r = await api('/api/shots/one', {method:'POST', body: JSON.stringify({name: todo[i].name})});
+        if(r.ok) ok++;
+        else { fail++; $('#shots-msg').textContent = todo[i].name + '：' + r.error; }
+      }catch(e){
+        fail++;
+        $('#shots-msg').textContent = todo[i].name + '：' + e.message;
+      }
+    }
+    $('#shots-bar').style.width = '100%';
+
+    await loadShots();
+    $('#shots-msg').textContent = '完成：成功 ' + ok + ' 张'
+      + (fail ? '，失败 ' + fail + ' 张（图还在原地，再点一次重试）' : '')
+      + '。稿子已落进 raw/，审：未过，等你去「人格库」核。';
+    setTimeout(() => { $('#shots-bar').style.width = '0%'; }, 1500);
+  }finally{
+    SHOTS_BUSY = false;
+    btn.disabled = false;
+  }
+}
+
+$('#btn-shots-refresh').onclick = loadShots;
+$('#btn-shots-run').onclick = runShots;
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    $('#pane-' + t.dataset.tab).classList.add('active');
+    if(t.dataset.tab === 'persona') loadPersona();
+    if(t.dataset.tab === 'identity') loadIdentity();
+    if(t.dataset.tab === 'sim') loadSim();
+    if(t.dataset.tab === 'shots') loadShots();
+    if(t.dataset.tab === 'distill') loadDistill();
+    if(t.dataset.tab === 'sessions') loadSessions();
+    if(t.dataset.tab === 'config') loadConfig();
+  };
+});
+
+/* ---------- status ---------- */
+async function refreshStatus(){
+  try{
+    const s = await api('/api/status');
+    lastStatus = s;
+    $('#ver').textContent = 'v' + (s.version || '');
+    $('#p-chan').textContent = '试聊';
+    $('#p-model').textContent = s.model;
+    const short = x => String(x || '').split(/[.．·]/)[0] || '-';
+    const libEl = $('#p-lib');
+    libEl.textContent = short(s.persona.id) + (s.persona.boot ? '' : ' ·查看');
+    libEl.title = s.persona.id;
+    $('#p-persona').textContent = s.persona.filled + '/' + s.persona.total;
+    $('#p-msgs').textContent = s.memory.messages;
+  }catch(e){ /* 静默 */ }
+}
+
+/* ---------- logs ---------- */
+const LCOLOR = {INFO:'var(--ink-2)', WARNING:'var(--warn)', ERROR:'var(--err)', DEBUG:'var(--ink-3)'};
+function addLogs(items){
+  const box = $('#logs');
+  const near = box.scrollHeight - box.scrollTop - box.clientHeight < 90;
+  for(const it of items){
+    const d = new Date(it.t * 1000);
+    const hh = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
+    const div = document.createElement('div');
+    div.className = 'ln ' + it.lvl;
+    div.innerHTML = '<span class="t">' + hh + '</span><span class="s">' + it.src + '</span><span class="m"></span>';
+    div.querySelector('.m').textContent = it.msg;
+    box.appendChild(div);
+  }
+  while(box.childElementCount > 600) box.removeChild(box.firstChild);
+  if(follow && near) box.scrollTop = box.scrollHeight;
+}
+async function pollLogs(){
+  try{
+    const d = await api('/api/logs?since=' + logCursor);
+    if(d.items && d.items.length){ addLogs(d.items); logCursor = d.total; }
+    else if(d.total) logCursor = d.total;
+  }catch(e){}
+}
+
+/* ---------- config ---------- */
+let CFG = null;
+let CFG_DIRTY = false;
+const GROUP_ORDER = ['模型','人格','拥有者','记忆','归纳','素材台','蒸馏'];
+
+function markDirty(on){
+  CFG_DIRTY = !!on;
+  const b = $('#btn-save-top');
+  if(!b) return;
+  b.textContent = on ? '保存配置 •' : '保存配置';
+  b.style.borderColor = on ? 'var(--warn)' : '';
+  b.style.color = on ? 'var(--warn)' : '';
+}
+async function loadConfig(){
+  if(CFG) return;
+  try{
+    CFG = await api('/api/config');
+    renderConfig();
+  }catch(e){ $('#config-body').innerHTML = '<div class="hint">加载失败：' + e.message + '</div>'; }
+}
+function ctrl(f, v){
+  const id = 'f_' + f.path.replace(/\./g,'_');
+  // 只读项（启动库）：值由「切库」决定，不给人手改，也不参与提交
+  const ro = f.readonly ? ' disabled title="跟随切换，不在这里改"' : '';
+  if(f.type === 'bool'){
+    return '<label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="' + id + '" data-path="' + f.path + '" data-type="bool"' + (v ? ' checked' : '') + '><span class="hint">' + (v ? '已开启' : '已关闭') + '</span></label>';
+  }
+  if(f.type === 'select'){
+    const opts = f.options.map(o => '<option value="' + o + '"' + (o === v ? ' selected' : '') + '>' + o + '</option>').join('');
+    return '<select id="' + id + '" data-path="' + f.path + '" data-type="select">' + opts + '</select>';
+  }
+  if(f.type === 'list'){
+    const val = Array.isArray(v) ? v.join(', ') : (v == null ? '' : v);
+    return '<input id="' + id + '" data-path="' + f.path + '" data-type="list" value="' + String(val).replace(/"/g,'&quot;') + '">';
+  }
+  const step = f.step ? ' step="' + f.step + '"' : '';
+  const type = f.type === 'password' ? 'password' : (f.type === 'int' || f.type === 'float' ? 'number' : 'text');
+  const val = v == null ? '' : String(v);
+  return '<input id="' + id + '" type="' + type + '"' + step + ro + ' data-path="' + f.path + '" data-type="' + f.type + '" value="' + val.replace(/"/g,'&quot;') + '">';
+}
+function renderConfig(){
+  const groups = {};
+  for(const f of CFG.fields){ (groups[f.group] = groups[f.group] || []).push(f); }
+  // 按 GROUP_ORDER 排；表里没列到的分组也要渲染出来，放在最后。
+  // 之前漏加一个组名，整组字段就凭空消失，查起来很费劲。
+  const rank = g => { const i = GROUP_ORDER.indexOf(g); return i < 0 ? 99 : i; };
+  const names = Object.keys(groups).sort((a, b) => rank(a) - rank(b));
+  let html = '';
+  for(const g of names){
+    const note = '';
+    html += '<div class="card"><h3>' + g + '</h3>' + note + '<div class="grid">';
+    for(const f of groups[g]){
+      const v = CFG.values[f.path];
+      // 整份配置随库，多数项不必标；只有不随库的那一项值得指出来
+      const tag = f.tag ? '<span class="badge dim">' + f.tag + '</span>'
+                        : (f.scope === 'persona' ? '' : '<span class="badge dim">全局</span>');
+      html += '<div class="field"><label>' + f.label + ' ' + tag + '</label>' + ctrl(f, v) +
+              (f.hint ? '<div class="hint">' + f.hint + '</div>' : '') + '</div>';
+    }
+    // 记忆组末尾挂一个手动整理的入口：定时归档默认关着，
+    // 关着的时候总得有地方能"现在就跑一次"，否则功能等于不存在
+    const extra = (g === '记忆')
+      ? '<div style="margin-top:11px;padding:10px 11px;border:1px dashed var(--line);border-radius:8px">'
+        + '<div class="hint" id="ingest-line" style="line-height:1.8">正在读取归档状态…</div>'
+        + '<div class="row" style="margin-top:8px"><button id="ingest-run">立即整理</button>'
+        + '<span class="hint" id="ingest-msg" style="margin-left:8px"></span></div>'
+        + '</div>'
+      : '';
+    html += '</div>' + extra + '</div>';
+  }
+  const P = CFG.persona || {};
+  const head = '<div class="hint" style="margin-bottom:10px;padding:8px 11px;border:1px dashed var(--line);border-radius:8px;line-height:1.7">'
+    + '这一页的配置<b>整份属于当前人格库</b>，写进 <code>' + esc(P.prefs_path || 'preferences.toml') + '</code>。'
+    + '换一个库就是另一套：另一个昵称、另一个拥有者、另一个机器人账号、另一套触发参数。'
+    + '<br>「启动时加载的人格库」标着 <span class="badge dim">跟随切换</span>：切到哪个库，开机就读哪个库，这里只读。要换库，回总端点「切到此库运行」。'
+    + '<br>当前库：<b style="color:var(--accent-deep)">' + esc(P.id || '-') + '</b>'
+    + (P.boot ? '' : '（查看态 · 改动会落到这个库自己的文件，不影响线上运行的那个）')
+    + '</div>';
+  $('#config-body').innerHTML = head + html;
+  const runBtn = $('#ingest-run');
+  if(runBtn) runBtn.onclick = () => ingestRun();
+  refreshIngest();
+  document.querySelectorAll('#config-body input[type=checkbox]').forEach(cb => {
+    cb.onchange = () => { cb.nextElementSibling.textContent = cb.checked ? '已开启' : '已关闭'; };
+  });
+  document.querySelectorAll('#config-body [data-path]').forEach(el => {
+    el.addEventListener('input', () => markDirty(true));
+    el.addEventListener('change', () => markDirty(true));
+  });
+  const state = CFG.has_key
+    ? (CFG.key_from_env ? 'Key 来自环境变量 ' + CFG.key_env : 'Key 已保存')
+    : '没填 API Key，调模型会失败';
+  $('#save-hint').textContent = state + ' · 写入 ' + CFG.path;
+  markDirty(false);
+}
+/* ---------- 一键归纳（跑起来） ---------- */
+// 点一下 = 读 raw → 出补丁 → 过闸 → 落盘 → 改名，全程不弹确认。
+// 写错了靠"整份备份 + 一键撤回"兜底，所以不在开跑前拦一道。
+// 进度靠 /api/ingest/job 轮询：一轮二十四份要十几分钟，HTTP 等不起，更不能让按钮看起来没反应。
+let INGEST = null;      // 最近一次队列状态（未归纳几份）
+let ING_JOB = null;     // 最近一次运行态快照
+let ING_POLL = null;   // 轮询句柄
+let ING_RUN = '';       // 这一轮的 run_id（撤回要用）
+let ING_MEM = null;     // 记忆归档的状态（跟归纳共用同一个轮询口）
+let ING_KICK = 0;       // 刚把记忆归档踢起来的时刻（轮询宽限用，见 pollJob）
+
+function ingBtnIdle(){
+  const btn = $('#btn-ingest');
+  if(!btn) return;
+  if(!CUR){ btn.textContent = '一键归纳'; btn.disabled = true; btn.classList.remove('hot'); return; }
+  const n = INGEST ? (INGEST.pending || 0) : 0;
+  const bad = (INGEST && INGEST.counts && INGEST.counts.blocked) || 0;
+  btn.disabled = false;
+  btn.textContent = n ? ('一键归纳 ' + n) : '已收齐';
+  btn.classList.toggle('hot', n > 0);
+  btn.title = n ? (n + ' 份素材没归纳过，点一下按 agents.md 收进 wiki')
+                : (bad ? '都收过了，但有 ' + bad + ' 份被拦住（点开看原因）' : 'raw 里的素材都收过了');
+}
+
+async function loadIngestState(){
+  const btn = $('#btn-ingest');
+  if(!btn) return;
+  if(!CUR){ ingBtnIdle(); return; }
+  try{
+    const d = await api('/api/ingest/state');
+    if(!d.ok) throw new Error(d.error || '队列读不出来');
+    INGEST = d;
+    ingBtnIdle();
+    // 刷新/换标签回来时把运行态接上：还在跑就接着显示进度并继续轮询，
+    // 已经跑完就还原本轮结果条 —— 不然刚点完一刷新，“改了 3 条 [看清单]”就没了，
+    // 想撤回还得去翻日志。
+    const job = d.job || null;
+    if(job){
+      if(job.memory) ING_MEM = job.memory;
+      ING_JOB = job;
+      if(job.run_id) ING_RUN = job.run_id;
+      if(job.running){ ingBarRun(job); startPoll(); }
+      else if((job.results || []).length || job.error) ingBarDone(job);
+    }
+  }catch(e){
+    btn.textContent = '一键归纳';
+    btn.title = '读不到队列：' + e.message;
+  }
+}
+
+// 注意：配置页那个「立即整理」也叫 ingestRun（记忆归档）。同名会被后者覆盖，
+// P3 接按钮时踩过这个坑 —— 点「一键归纳」实际跑的是记忆归档。这里加 Raw 区分。
+async function ingestRunRaw(opts){
+  if(!CUR){ toast('先选一个人格库', 'err'); return; }
+  const thenMem = !!(opts && opts.then_memory);
+  const btn = $('#btn-ingest');
+  btn.disabled = true; btn.textContent = '归纳中…';
+  try{
+    const r = await api('/api/ingest/run', {method:'POST', body: JSON.stringify({then_memory: thenMem})});
+    if(!r.ok) throw new Error(r.error || '开不了这一轮');
+    if(!r.queued){
+      ingBtnIdle();
+      ingBarShow('', '✓', esc(r.message || '没有待归纳的素材'));
+      // 前半段没活但后半段（记忆归档）已经开跑，得盯着它跑完
+      if(r.then_memory){ ING_KICK = Date.now(); startPoll(); }
+      return;
+    }
+    ING_RUN = r.run_id || '';
+    // 库内 [ingest] max_per_run 限了量就说清楚，别让人以为剩下的被吞了
+    const rest = r.remaining > 0 ? ('（还剩 ' + r.remaining + ' 份下一轮）') : '';
+    toast('开跑：' + r.queued + ' 份素材' + rest + '，进度看下面那条', 'ok');
+    startPoll();
+  }catch(e){
+    ingBtnIdle();
+    toast('没开起来：' + e.message, 'err');
+  }
+}
+
+/* 轮询：1.5 秒一次，跑完自己停 */
+function startPoll(){
+  if(ING_POLL) return;
+  pollJob();
+  ING_POLL = setInterval(pollJob, 1500);
+}
+function stopPoll(){ if(ING_POLL) clearInterval(ING_POLL); ING_POLL = null; }
+
+async function pollJob(){
+  let j;
+  try{ j = await api('/api/ingest/job'); }
+  catch(e){ stopPoll(); ingBarShow('err', '✗', '读不到进度：' + esc(e.message)); return; }
+  ING_JOB = j;
+  if(j.memory) ING_MEM = j.memory;
+  if(j.run_id) ING_RUN = j.run_id;
+  const modal = $('#ingest-modal');
+  // 记忆归档与素材归纳共用这一条轮询：任一个还在跑就继续盯着。
+  // 以前只看 j.running，记忆归档一起跑就立刻收工，卡片永远停在"整理中"。
+  const memRunning = !!(j.memory && j.memory.running);
+  // 刚踢起来的 4 秒内不认"没在跑"：后端是丢个后台任务立刻返回的，
+  // 第一次轮询完全可能撞在它还没被调度的缝里。一收工界面就再没人更新了，
+  // 看起来就是点了按钮什么都不动。
+  const kicking = ING_KICK && (Date.now() - ING_KICK < 4000);
+  if(j.running || memRunning || kicking){
+    if(!j.running && (memRunning || kicking)) ingBarMem();
+    else ingBarRun(j);
+    if(modal.classList.contains('on')) ingRender(j);
+    return;
+  }
+  ING_KICK = 0;
+  stopPoll();
+  ingBarDone(j);
+  if(modal.classList.contains('on')) ingRender(j);
+  else{
+    // 弹层没开时没人重建卡片，按钮会一直挂在"正在整理…"
+    const go = $('#ing-mem-go');
+    if(go){ go.disabled = false; go.textContent = '整理记忆'; }
+  }
+  await loadIngestState();
+}
+
+/* ---------- 结果条 ---------- */
+function ingBarShow(cls, ico, html, undoRun){
+  const bar = $('#ingest-bar');
+  if(!bar) return;
+  bar.hidden = false;
+  bar.className = 'ingest-bar ' + (cls || '');
+  $('#ib-ico').innerHTML = ico || '·';
+  $('#ib-txt').innerHTML = html;
+  $('#ib-undo').hidden = !undoRun;
+  $('#ib-undo').dataset.run = undoRun || '';
+  $('#ib-open').hidden = false;
+}
+function ingBarRun(j){
+  const total = j.total || 0, cur = j.current || 0;
+  const name = (j.item || '').replace(/^\d{4}-\d\d-\d\d_/, '');
+  ingBarShow('run', '<span class="ib-spin"></span>',
+    '归纳中 <b>' + cur + '/' + (total || '?') + '</b>' + (name ? ' · ' + esc(name) : ''));
+}
+function ingBarMem(){
+  ingBarShow('run', '<span class="ib-spin"></span>',
+    '正在整理记忆…<span class="ib-dim">素材那一轮已经落好了</span>');
+}
+/* 这一轮跑过记忆归档就说一句，没跑过别揽功。
+   归档短的时候两秒就跑完了，轮询根本抓不到 running —— 不给结论的话，
+   人只看到进度条闪一下，会以为按钮坏了。 */
+function ingMemTail(j){
+  const m = j.memory || {};
+  if(!m.at || m.note !== '完成') return '';
+  if(Date.now() / 1000 - Number(m.at) > 120) return '';
+  const ev = Number(m.events || 0);
+  return ' · 记忆归档第 ' + (m.rounds || 0) + ' 轮' + (ev ? '（沉 ' + ev + ' 条）' : '（没新的）');
+}
+function ingBarDone(j){
+  const results = j.results || [], commits = j.commits || [];
+  if(j.error || j.phase === 'error'){
+    ingBarShow('err', '✗', '中断：' + esc(j.error || '未知错误'), commits.length ? (commits[0].run_id || '') : '');
+    return;
+  }
+  if(!results.length){
+    const mt = ingMemTail(j);
+    if(mt){ ingBarShow('ok', '✓', '素材已收齐' + mt); return; }
+    ingBarShow('', '·', '没有待归纳的素材');
+    return;
+  }
+  const acc = commits.reduce((s, c) => s + (c.accepted || 0), 0);
+  const rej = results.reduce((s, r) => s + (r.rejected || 0), 0);
+  const pages = new Set();
+  commits.forEach(c => (c.pages || []).forEach(p => pages.add(p)));
+  const runId = commits.length ? (commits[0].run_id || '') : (j.run_id || '');
+  const ix = j.index || {};
+  const ixTxt = ix.changed ? ' · 总括段已更新' : '';
+  const lc = j.lint || {};
+  const lintTxt = lc.ok
+    ? (lc.errors ? ' · <span class="ib-bad">' + lc.summary + '</span>'
+                 : (lc.warns ? ' · <span class="ib-warn">' + lc.summary + '</span>' : ' · 体检通过'))
+    : '';
+  const memTxt = ingMemTail(j);
+  if(!acc){
+    ingBarShow('', '·', results.length + ' 份都看过了，没有可收的条目'
+      + (rej ? '（拦下 ' + rej + ' 条）' : '')
+      + (commits.length ? '，素材已标成<b>已归纳</b>' : '') + ixTxt + lintTxt + memTxt, runId);
+    return;
+  }
+  ingBarShow('ok', '✓',
+    results.length + ' 份 → 改 <b>' + acc + '</b> 条 · 动了 ' + pages.size + ' 页'
+    + (rej ? ' · 拦 ' + rej + ' 条' : '') + ixTxt + lintTxt + memTxt,
+    commits.length ? (commits[0].run_id || '') : '');
+}
+
+/* ---------- 清单弹层 ---------- */
+function ingOpen(){
+  $('#ingest-modal').classList.add('on');
+  ingRender(ING_JOB);
+}
+function ingClose(){ $('#ingest-modal').classList.remove('on'); }
+
+function ingLog(j, tail){
+  const lines = (j && j.lines) || [];
+  const use = tail ? lines.slice(-tail) : lines;
+  if(!use.length) return '';
+  return '<div class="ing-log">' + use.map(l =>
+    '<div class="' + esc(l.level || '') + '">' + esc(l.t + '  ' + l.text) + '</div>').join('') + '</div>';
+}
+
+function ingItem(r){
+  const patches = r.patches || [];
+  let head = '<div class="ing-head"><span>' + esc(r.asset) + '</span><span class="sp"></span>';
+  if(r.accepted) head += '<span class="ing-tag ok">收 ' + r.accepted + '</span>';
+  if(r.rejected) head += '<span class="ing-tag bad">拦 ' + r.rejected + '</span>';
+  if(r.conflicts) head += '<span class="ing-tag warn">冲突 ' + r.conflicts + '</span>';
+  if(r.error) head += '<span class="ing-tag bad">失败</span>';
+  head += '</div>';
+
+  let rows = '';
+  if(r.error) rows += '<div class="ing-patch bad"><div class="ing-reject">✗ ' + esc(r.error) + '</div></div>';
+  if(r.note) rows += '<div class="ing-patch"><div class="ing-why">' + esc(r.note) + '</div></div>';
+  patches.forEach(p => {
+    const line = '<div class="ing-line"><span class="op ' + esc(p.op) + '">' + esc(p.op) + '</span>'
+      + '<span class="where">' + esc(p.page || '—') + '</span>'
+      + (p.section ? ' · ' + esc(String(p.section).replace(/^#+\s*/, '')) : '')
+      + (p.title ? ' ▸ ' + esc(p.title) : '')
+      + (p.confidence ? ' <span class="ing-tag ' + (p.confidence === 'high' ? 'ok' : (p.confidence === 'low' ? 'bad' : 'warn')) + '">'
+          + esc(p.confidence) + '</span>' : '')
+      + '</div>';
+    rows += '<div class="ing-patch' + (p.ok ? '' : ' bad') + '">' + line
+      + (p.text && p.op !== 'skip' ? '<pre>' + esc(p.text) + '</pre>' : '')
+      + (p.quote ? '<div class="ing-quote">' + esc(p.quote) + '</div>' : '')
+      + (p.why ? '<div class="ing-why">' + esc(p.why) + '</div>' : '')
+      + (p.ok ? '' : '<div class="ing-reject">✗ ' + esc(p.reject) + '</div>')
+      + '</div>';
+  });
+  if(!rows) rows = '<div class="ing-patch"><div class="ing-why">这份素材没出条目</div></div>';
+  return '<div class="ing-item">' + head + rows + '</div>';
+}
+
+function ingIndex(ix){
+  if(!ix || (!ix.changed && !ix.error && !(ix.notes || []).length)) return '';
+  let head = '<div class="ing-item"><div class="ing-head"><span>index.md 总括段</span>'
+    + '<span class="sp"></span>';
+  if(ix.error) head += '<span class="ing-tag bad">失败</span>';
+  else if(ix.changed) head += '<span class="ing-tag ok">已更新</span>';
+  else head += '<span class="ing-tag">没变</span>';
+  head += '</div>';
+  let rows = '';
+  if(ix.error) rows += '<div class="ing-patch bad"><div class="ing-reject">✗ ' + esc(ix.error) + '</div></div>';
+  if(ix.changed && ix.summary)
+    rows += '<div class="ing-patch"><div class="ing-line"><span class="op append">改</span>'
+      + '<span class="where">' + esc(ix.summary) + '</span></div></div>';
+  if(!ix.changed && ix.reason)
+    rows += '<div class="ing-patch"><div class="ing-why">' + esc(ix.reason) + '</div></div>';
+  (ix.notes || []).forEach(n => {
+    rows += '<div class="ing-patch"><div class="ing-why">· ' + esc(n) + '</div></div>';
+  });
+  return head + (rows || '<div class="ing-patch"><div class="ing-why">这轮没动总括段</div></div>') + '</div>';
+}
+
+async function ingestMemory(){
+  if(!CUR){ toast('先选一个人格库', 'err'); return; }
+  const go = $('#ing-mem-go');
+  if(go){ go.disabled = true; go.textContent = '正在整理…'; }
+  try{
+    const r = await api('/api/memory/ingest', {method:'POST', body:'{}'});
+    if(!r.ok) throw new Error(r.error || '没能开始整理');
+    toast('记忆归档已开跑，跑完这里会自己更新', 'ok');
+    ING_MEM = Object.assign({}, ING_MEM || {}, {running: true});
+    ING_KICK = Date.now();
+    startPoll();
+  }catch(e){
+    if(go){ go.disabled = false; go.textContent = '整理记忆'; }
+    toast('记忆归档没跑起来：' + e.message, 'err');
+  }
+}
+
+function bindIngMem(){
+  const go = $('#ing-mem-go');
+  if(go) go.onclick = () => ingestMemory();
+}
+
+/* ---------- 一键归纳：入口下拉 ---------- */
+function ingMenu(open){
+  const m = $('#ing-menu');
+  if(m) m.hidden = !open;
+}
+
+function ingMemory(mem){
+  const m = mem || ING_MEM || {};
+  let head = '<div class="ing-item"><div class="ing-head"><span>记忆归档</span>'
+    + '<span class="sp"></span>';
+  if(!m.available){ head += '<span class="ing-tag bad">没接上</span></div>'; }
+  else if(m.running) head += '<span class="ing-tag warn">整理中</span></div>';
+  else if(m.enabled) head += '<span class="ing-tag ok">已开</span></div>';
+  else head += '<span class="ing-tag">未开</span></div>';
+
+  if(!m.available)
+    return head + '<div class="ing-patch"><div class="ing-why">'
+      + '记忆归档器没接上：记忆层没开，或者归档脚本加载失败。'
+      + '素材归纳不受影响。</div></div></div>';
+
+  const rows = [];
+  rows.push('<div class="ing-patch"><div class="ing-why">'
+    + '把会话记录里的东西整理进 <code>memory/</code>。跟素材归纳是两条线：'
+    + '一条读 <code>raw/</code> 里的文件，一条读聊天记录，失败了好分清是谁的锅。</div></div>');
+  if(m.at){
+    const t = new Date(m.at * 1000), p = n => String(n).padStart(2, '0');
+    rows.push('<div class="ing-patch"><div class="ing-line">'
+      + '<span class="op skip">上次</span><span class="where">'
+      + p(t.getMonth() + 1) + '-' + p(t.getDate()) + ' ' + p(t.getHours()) + ':' + p(t.getMinutes())
+      + ' · ' + esc(m.note || '') + (m.rounds ? ' · 第 ' + m.rounds + ' 轮' : '')
+      + '</span></div></div>');
+  }
+  rows.push('<div class="ing-patch"><div class="row" style="gap:8px">'
+    + '<button id="ing-mem-go"' + (m.running ? ' disabled' : '') + '>'
+    + (m.running ? '正在整理…' : '整理记忆') + '</button>'
+    + '<span class="hint">' + (m.interval_hours
+        ? '每 ' + m.interval_hours + ' 小时自动跑一次' : '自动归档关着，只能手动跑')
+    + '</span></div></div>');
+  return head + rows.join('') + '</div>';
+}
+
+function ingLint(lc){
+  if(!lc || (!lc.ok && !lc.error)) return '';
+  let head = '<div class="ing-item"><div class="ing-head"><span>体检</span>'
+    + '<span class="sp"></span>';
+  if(!lc.ok) head += '<span class="ing-tag bad">没跑成</span>';
+  else if(lc.errors) head += '<span class="ing-tag bad">' + lc.errors + ' error</span>';
+  if(lc.ok && lc.warns) head += '<span class="ing-tag warn">' + lc.warns + ' warn</span>';
+  if(lc.ok && !lc.errors && !lc.warns) head += '<span class="ing-tag ok">通过</span>';
+  head += '</div>';
+  if(!lc.ok)
+    return head + '<div class="ing-patch bad"><div class="ing-reject">✗ '
+      + esc(lc.error || '未知错误') + '</div></div></div>';
+  const items = lc.items || [];
+  if(!items.length)
+    return head + '<div class="ing-patch"><div class="ing-why">'
+      + '八页结构、证据、反应卡边界、总括段小节都正常。</div></div></div>';
+  const rows = items.map(it => {
+    const cls = it.level === 'error' ? 'bad' : (it.level === 'warn' ? '' : '');
+    return '<div class="ing-patch ' + cls + '"><div class="ing-line">'
+      + '<span class="op ' + (it.level === 'error' ? 'conflict' : 'skip') + '">' + esc(it.level) + '</span>'
+      + '<span class="where">' + esc(it.page) + (it.line ? ':' + it.line : '') + '</span>'
+      + (it.text ? ' · ' + esc(it.text) : '')
+      + '</div><div class="ing-why">' + esc(it.why) + '</div></div>';
+  }).join('');
+  return head + rows + '</div>';
+}
+
+function ingRender(j){
+  const sub = $('#ing-sub'), body = $('#ing-body'), undoBtn = $('#ing-undo');
+  if(!j){
+    sub.textContent = '还没跑过';
+    undoBtn.disabled = true;
+    body.innerHTML = '<div class="ing-empty">还没跑过。点顶栏的「一键归纳 N」——'
+      + '程序会读 <code>raw/</code> 里没归纳过的素材，按 <code>agents.md</code> 收进 wiki，'
+      + '收完把素材改名加 <code>.已归纳</code>。<br><br>'
+      + '跑完这里会逐条列出改了什么、每条的证据是哪一句、被拦下的为什么被拦。</div>'
+      + ingMemory();
+    bindIngMem();
+    return;
+  }
+  const results = j.results || [], commits = j.commits || [];
+  const acc = commits.reduce((s, c) => s + (c.accepted || 0), 0);
+  const rej = results.reduce((s, r) => s + (r.rejected || 0), 0);
+  const runId = commits.length ? (commits[0].run_id || '') : (j.run_id || '');
+  const ixChanged = !!(j.index && j.index.changed);
+  undoBtn.disabled = !(runId && (commits.length || ixChanged));
+  undoBtn.dataset.run = runId || '';
+
+  if(j.running){
+    const name = (j.item || '').replace(/^\d{4}-\d\d-\d\d_/, '');
+    sub.innerHTML = '正在跑 <b>' + (j.current || 0) + '/' + (j.total || '?') + '</b>'
+      + (name ? ' · ' + esc(name) : '')
+      + '　<span style="color:var(--dim)">每收完一份就落一次盘，出错可整轮撤回</span>';
+  }else if(results.length){
+    sub.innerHTML = '这一轮 ' + results.length + ' 份 · 落盘 <b>' + acc + '</b> 条 · 拦下 <b>' + rej + '</b> 条'
+      + (ixChanged ? ' · 总括段已更新' : '')
+      + ((j.lint && j.lint.ok) ? ' · ' + esc(j.lint.summary) : '')
+      + (commits.length ? '　<span style="color:var(--dim)">备份 ' + esc(commits[commits.length - 1].stamp) + '</span>' : '');
+  }else{
+    sub.textContent = '这一轮没有待归纳的素材';
+  }
+
+  if(!results.length){
+    body.innerHTML = (ingLog(j, 40) || '<div class="ing-empty">没有记录。</div>')
+      + ingMemory(j.memory || ING_MEM);
+    bindIngMem();
+    return;
+  }
+  body.innerHTML = results.map(ingItem).join('') + ingIndex(j.index || '')
+    + ingLint(j.lint || '') + ingMemory(j.memory || ING_MEM)
+    + (j.running ? ingLog(j, 12) : '');
+  bindIngMem();
+}
+
+async function ingUndo(runId){
+  if(!runId){ toast('这一轮没有可撤的记录', 'err'); return; }
+  if(!confirm('撤回这一轮？\n\n页面内容和素材文件名都会还原成跑之前的样子，备份目录会留着不删。')) return;
+  try{
+    const r = await api('/api/ingest/undo', {method:'POST', body: JSON.stringify({run_id: runId})});
+    if(!r.ok) throw new Error(r.error || '撤回失败');
+    const files = (r.restored || []).length, ren = (r.renamed || []).length;
+    toast('已撤回：还原 ' + files + ' 个文件' + (ren ? '，' + ren + ' 份素材名改回去了' : ''), 'ok');
+    $('#ingest-bar').hidden = true;
+    ingClose();
+    ING_JOB = null; ING_RUN = '';
+    await loadIngestState();
+  }catch(e){ toast('撤回失败：' + e.message, 'err'); }
+}
+
+/* ---------- 记忆归档 ---------- */
+// 一轮归档要挨个会话调模型，慢起来几分钟，所以只负责开跑，
+// 进度靠轮询 /api/status 的 ingest 段，别让按钮看起来像没反应。
+let ING_TIMER = null;
+async function refreshIngest(){
+  clearTimeout(ING_TIMER);
+  const line = $('#ingest-line');
+  if(!line) return;
+  let d;
+  try{
+    const s = await api('/api/status');
+    d = s.ingest;
+  }catch(e){
+    line.textContent = '读不到归档状态：' + esc(e.message);
+    return;
+  }
+  if(!d){ line.textContent = '后端没接归档器。'; return; }
+  const parts = [];
+  if(d.running) parts.push('正在整理…');
+  else if(d.at) parts.push('上次整理：' + fmtTs(d.at) + '（第 ' + d.rounds + ' 轮）');
+  else parts.push('还没整理过');
+  if(d.note && d.note !== '完成' && d.note !== '还没跑过') parts.push(esc(d.note));
+  parts.push(d.enabled ? ('自动：每 ' + d.interval_hours + ' 小时') : '自动：关，只手动');
+  parts.push(d.allow_new ? '允许新建页' : '只并入已有页');
+  line.innerHTML = parts.join(' · ');
+  const btn = $('#ingest-run');
+  if(btn){
+    btn.disabled = !!d.running || !d.available;
+    btn.textContent = d.running ? '整理中…' : '立即整理';
+  }
+  if(d.running) ING_TIMER = setTimeout(refreshIngest, 3000);
+}
+async function ingestRun(){
+  const btn = $('#ingest-run'), msg = $('#ingest-msg');
+  if(btn){ btn.disabled = true; btn.textContent = '整理中…'; }
+  if(msg) msg.textContent = '';
+  try{
+    const r = await api('/api/memory/ingest', {method:'POST', body:'{}'});
+    if(!r.ok && msg) msg.textContent = r.error || '没能开始整理';
+  }catch(e){
+    if(msg) msg.textContent = '没能开始整理：' + e.message;
+  }
+  refreshIngest();
+}
+
+async function saveConfig(silent){
+  const values = {};
+  document.querySelectorAll('#config-body [data-path]').forEach(el => {
+    // 只读项（启动库）不提交：它由切库决定，交上去只会被后端忽略
+    if(el.disabled) return;
+    const t = el.dataset.type;
+    values[el.dataset.path] = t === 'bool' ? el.checked : el.value;
+  });
+  // 凭证/密钥清空是不可逆操作：这个库自己那份没了就得重新去平台复制。清空前问一句。
+  if(CFG && CFG.values){
+    const risky = [['adapter.official.app_id','AppID'],
+                   ['adapter.official.app_secret','AppSecret'],
+                   ['llm.api_key','API Key']];
+    const wiped = risky
+      .filter(([p]) => String(CFG.values[p] || '').trim() && !String(values[p] || '').trim())
+      .map(([, name]) => name);
+    if(wiped.length && !confirm('你正在清空 ' + wiped.join(' 和 ') + '。\n\n'
+        + '这是「' + ((CFG.persona && CFG.persona.id) || '当前库') + '」自己的凭证/密钥。'
+        + '清空之后这个库就连不上，要重新去开放平台或模型后台复制一遍。\n\n'
+        + '（别的库不受影响，它们各自存着一份。）\n\n确定清空吗？')){
+      return false;
+    }
+  }
+  $('#btn-save').disabled = true;
+  $('#btn-save-top').disabled = true;
+  try{
+    const r = await api('/api/config', {method:'POST', body: JSON.stringify({values})});
+    if(!r.ok) throw new Error(r.error);
+    markDirty(false);
+    $('#save-hint').textContent = '已写入 ' + r.path + '（' + r.saved_at + '）';
+    if(!silent) toast(r.message, 'ok');
+    CFG = null;
+    await loadConfig();
+    refreshStatus();
+    return true;
+  }catch(e){
+    toast('保存失败：' + e.message, 'err');
+    $('#save-hint').textContent = '保存失败：' + e.message;
+    return false;
+  }finally{
+    $('#btn-save').disabled = false;
+    $('#btn-save-top').disabled = false;
+  }
+}
+
+/* ---------- chat ---------- */
+async function sendChat(){
+  const inp = $('#chat-input');
+  const text = inp.value.trim();
+  if(!text) return;
+  inp.value = '';
+  const box = $('#chatlog');
+  const emptyEl = $('#chat-empty'); if(emptyEl) emptyEl.remove();
+  const me = document.createElement('div');
+  me.className = 'bubble me'; me.textContent = text;
+  box.appendChild(me);
+  box.scrollTop = box.scrollHeight;
+
+  const pending = document.createElement('div');
+  pending.className = 'bubble bot'; pending.textContent = '…';
+  box.appendChild(pending);
+  box.scrollTop = box.scrollHeight;
+
+  $('#btn-send').disabled = true;
+  try{
+    const r = await api('/api/chat', {method:'POST', body: JSON.stringify({text, remember: $('#remember').checked})});
+    if(!r.ok) throw new Error(r.error);
+    pending.textContent = r.reply || '(空)';
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.innerHTML = '<span>耗时 <b>' + r.elapsed_ms + 'ms</b></span><span>字数 <b>' + r.chars + '</b></span>' +
+                     '<span>命中页 <b>' + (r.pages.length ? r.pages.join(' · ') : '无') + '</b></span>';
+    const det = document.createElement('details');
+    det.innerHTML = '<summary>查看注入的提示词（' + r.system_prompt.length + ' 字符）</summary><pre></pre>';
+    det.querySelector('pre').textContent = r.system_prompt;
+    const wrap = document.createElement('div');
+    wrap.appendChild(meta); wrap.appendChild(det);
+    box.appendChild(wrap);
+  }catch(e){
+    pending.textContent = '出错：' + e.message;
+  }finally{
+    $('#btn-send').disabled = false;
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+/* ---------- identity（母本） ---------- */
+let ID = { exists: false, dirty: false, max: 20000 };
+
+function renderIdentity(d){
+  ID.exists = !!d.exists;
+  ID.max = d.max_chars || 20000;
+  $('#id-chars').textContent = d.chars + (d.max_chars ? ' / ' + d.max_chars : '');
+  $('#id-saved').textContent = d.saved_at || (d.exists ? '-' : '尚未创建');
+  $('#id-hist').textContent = (d.history_count || 0) + (d.history && d.history.length ? '（最近 ' + d.history[0].replace('.md','') + '）' : '');
+  $('#id-fill').textContent = d.filled + '/' + d.total;
+  $('#id-path').textContent = d.path;
+  $('#id-sections').innerHTML = (d.sections || []).map(s =>
+    '<span class="tag ' + (s.filled ? 'ok' : 'no') + '">' + esc(s.name) + ' · ' + (s.filled ? s.chars + ' 字' : '缺') + '</span>'
+  ).join('') || '<div class="empty">读不到内容</div>';
+}
+
+async function loadIdentity(force){
+  try{
+    const d = await api('/api/identity');
+    const ta = $('#id-text');
+    if(force || !ID.dirty || !ta.value.trim()){
+      ta.value = d.exists ? d.content : (d.template || '');
+      ID.dirty = false;
+    }
+    renderIdentity(d);
+    if(!d.exists) $('#id-saved').textContent = '尚未创建 · 保存后生成';
+  }catch(e){ toast('读取母本失败：' + e.message, 'err'); }
+}
+
+async function saveIdentity(){
+  const ta = $('#id-text');
+  const text = ta.value;
+  if(!text.trim()){ toast('母本不能是空的', 'err'); return; }
+  const btn = $('#btn-id-save');
+  btn.disabled = true;
+  try{
+    const d = await api('/api/identity', {method:'POST', body: JSON.stringify({content:text})});
+    ID.dirty = false;
+    ta.value = d.content;
+    renderIdentity(d);
+    toast('母本已保存' + (d.backup ? ' · 旧版备份为 ' + d.backup : ''), 'ok');
+  }catch(e){ toast('保存失败：' + e.message, 'err'); }
+  finally{ btn.disabled = false; }
+}
+
+$('#id-text').addEventListener('input', () => { ID.dirty = true; });
+$('#btn-id-save').onclick = saveIdentity;
+$('#btn-id-reload').onclick = () => {
+  if(ID.dirty && !confirm('有未保存的修改，重新读取会丢掉它们。继续？')) return;
+  loadIdentity(true);
+};
+
+/* ---------- persona ---------- */
+async function loadPersona(){
+  try{
+    const p = await api('/api/persona');
+    $('#persona-summary').textContent = p.summary_empty ? '（空，当前使用中性兜底人设）' : p.summary;
+    const filled = p.pages.filter(x => x.filled).length;
+    $('#persona-bar').style.width = (p.pages.length ? filled / p.pages.length * 100 : 0) + '%';
+    $('#persona-ratio').textContent = '填充 ' + filled + '/' + p.pages.length + ' 页';
+    $('#persona-root').textContent = p.root;
+    $('#persona-pages').innerHTML = p.pages.map(x =>
+      '<span class="tag ' + (x.filled ? 'ok' : 'no') + '">' + x.name.replace('.md','') + ' · ' + x.chars + '字</span>'
+    ).join('');
+    $('#persona-routes').textContent = p.routes.length
+      ? p.routes.map(r => r.situation + '  →  ' + r.pages.join(' + ')).join('\n')
+      : '（index.md 路由段为空）';
+  }catch(e){ $('#persona-summary').textContent = '加载失败：' + e.message; }
+}
+
+/* ---------- sessions：浏览 / 压缩 / 删除 ---------- */
+let CUR_SESSION = null;
+
+async function loadSessions(){
+  try{
+    const d = await api('/api/sessions');
+    const box = $('#session-list');
+    $('#session-view').innerHTML = '';
+    if(!d.sessions.length){ box.innerHTML = '<div class="empty">还没有任何会话记录</div>'; return; }
+    box.innerHTML = d.sessions.map(s => {
+      const t = new Date(s.last * 1000).toLocaleString('zh-CN');
+      const tags = (s.has_summary ? '<span class="stag ok">已压缩</span>' : '')
+        + (s.pending ? '<span class="stag">待压 ' + s.pending + '</span>' : '');
+      return '<div class="srow" data-s="' + esc(s.session_id) + '">' +
+        '<span class="sid">' + esc(s.session_id) + '</span>' +
+        '<span class="scount">' + s.count + ' 条</span>' + tags +
+        '<span class="stime">' + esc(t) + '</span>' +
+        '<span class="sacts">' +
+          '<span class="act" data-op="view" title="看这个会话的消息和摘要">浏览</span>' +
+          '<span class="act" data-op="compact" title="把旧消息折成摘要">压缩</span>' +
+          '<span class="act del" data-op="del" title="清空这条会话">删</span>' +
+        '</span></div>';
+    }).join('');
+    box.querySelectorAll('.srow').forEach(el => {
+      el.onclick = ev => {
+        const op = ev.target.dataset ? ev.target.dataset.op : null;
+        const sid = el.dataset.s;
+        if(op === 'compact') return compactSession(sid);
+        if(op === 'del') return deleteSession(sid);
+        return viewSession(sid);
+      };
+    });
+  }catch(e){ $('#session-list').innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>'; }
+}
+
+function speakerOf(content){
+  const m = /^([^\s:：]{1,32})[:：]\s*/.exec(String(content || ''));
+  return m ? m[1].trim() : '';
+}
+
+function stripSpeaker(content){
+  return String(content || '').replace(/^([^\s:：]{1,32})[:：]\s*/, '');
+}
+
+/* 每条消息归属到谁：她的回复算它前面那条用户消息的发言人。
+   群聊一条流水看不出来，按人筛的时候得知道哪句回复跟着谁。 */
+function attributeMembers(msgs){
+  let who = '';
+  return msgs.map(m => {
+    if(m.role === 'user') who = speakerOf(m.content) || m.user_id || '';
+    return {m: m, who: who};
+  });
+}
+
+async function viewSession(sid){
+  CUR_SESSION = sid;
+  const box = $('#session-view');
+  box.innerHTML = '<div class="hint" style="margin-top:10px">加载中…</div>';
+  try{
+    const d = await api('/api/sessions/view?session=' + encodeURIComponent(sid));
+    if(!d.ok) throw new Error(d.error || '读取失败');
+    const msgs = d.messages || [];
+    const items = attributeMembers(msgs);
+    const members = d.members || [];
+
+    let html = '<div class="card sview"><div class="row" style="justify-content:space-between;align-items:center">' +
+      '<b style="font:12px var(--mono);color:var(--ink);word-break:break-all">' + esc(sid) + '</b>' +
+      '<span class="sacts"><span class="act" data-sclose="1">收起</span></span></div>';
+    if(d.summary){
+      html += '<div class="sumbox"><b>当前摘要 · 覆盖到第 ' + d.upto + ' 条</b><pre></pre></div>';
+    }
+    if(members.length > 1){
+      html += '<div class="mrow"><span class="mchip on" data-uid="">全部<b>' + msgs.length + '</b></span>' +
+        members.map(x => '<span class="mchip" data-uid="' + esc(x.name) + '" title="' +
+          esc(x.user_id || x.name) + '">' + esc(x.name) + '<b>' + x.count + '</b></span>').join('') +
+        '</div>';
+    }
+    html += '<div class="slog"></div>';
+    if(!msgs.length) html += '<div class="empty">这个会话没有消息（可能只剩摘要）</div>';
+    else if(d.truncated) html += '<div class="hint" style="margin-top:8px">只显示最近 ' +
+      msgs.length + ' 条（共 ' + d.total + ' 条），更早的仍在库里</div>';
+    box.innerHTML = html + '</div>';
+
+    const logBox = box.querySelector('.slog');
+    const draw = uid => {
+      const list = items.filter(x => !uid || x.who === uid);
+      logBox.innerHTML = list.map(x => {
+        const m = x.m;
+        const role = m.role === 'assistant' ? '她' : (m.role === 'user' ? '对方' : esc(m.role));
+        // 单人视图里"名字: "前缀是废话，剥掉；全部视图留着，那是唯一的发言人标识
+        const body = (uid && m.role === 'user') ? stripSpeaker(m.content) : m.content;
+        return '<div class="mline"><span class="mwho">' + role + '</span>' +
+          '<span class="mtxt">' + esc(body) + '</span>' +
+          '<span class="mts">' + new Date(m.ts * 1000).toLocaleString('zh-CN') + '</span></div>';
+      }).join('') || '<div class="empty">这个人还没有留下消息</div>';
+      logBox.scrollTop = logBox.scrollHeight;
+    };
+    draw('');
+    box.querySelectorAll('.mchip').forEach(el => {
+      el.onclick = () => {
+        box.querySelectorAll('.mchip').forEach(y => y.classList.remove('on'));
+        el.classList.add('on');
+        draw(el.dataset.uid || '');
+      };
+    });
+    box.querySelector('[data-sclose]').onclick = () => { box.innerHTML = ''; CUR_SESSION = null; };
+    const pre = box.querySelector('.sumbox pre');
+    if(pre) pre.textContent = d.summary;
+  }catch(e){ box.innerHTML = '<div class="hint" style="margin-top:10px">加载失败：' + esc(e.message) + '</div>'; }
+}
+
+async function compactSession(sid){
+  try{
+    const r = await api('/api/sessions/compact', {method:'POST', body: JSON.stringify({session: sid})});
+    if(!r.ok) throw new Error(r.error);
+    toast('已压缩 ' + r.covered + ' 条，摘要更新了', 'ok');
+    await loadSessions();
+    if(CUR_SESSION === sid) viewSession(sid);
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function deleteSession(sid){
+  if(!confirm('删掉「' + sid + '」的会话记录？\n消息和摘要一起清，不可恢复。')) return;
+  try{
+    const r = await api('/api/sessions/delete', {method:'POST', body: JSON.stringify({session: sid})});
+    if(!r.ok) throw new Error(r.error);
+    toast('已删 ' + r.deleted + ' 条', 'ok');
+    if(CUR_SESSION === sid){ CUR_SESSION = null; $('#session-view').innerHTML = ''; }
+    await loadSessions();
+  }catch(e){ toast(e.message, 'err'); }
+}
+$('#sess-refresh').onclick = () => loadSessions();
+
+/* ---------- 素材台 ---------- */
+const SIM = {cards:[], lib:[], batch:[], draft:null, cand:[], candRole:'', busy:false, label:'角色',
+             reactId:'', reactPrev:'',
+             cardEdit:null, libEdit:null, condEdit:false, insertAt:null, asking:false};
+let REL_OPTS = ['拥有者', '熟人', '陌生人'];
+let CAT_OPTS = [];
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// 我在演谁，以草稿里存的 mode 为准：下拉只是它的入口，
+// 两处各读一份就会出现"标签写她本人、存档还是对方"。
+const simMode = () => $('#sim-mode').value;
+const myRole = () => (SIM.draft && SIM.draft.mode) || simMode();
+const aiRole = () => myRole() === 'other' ? 'self' : 'other';
+const opposite = aiRole;
+const roleName = r => r === 'self' ? (SIM.label || '她') : '对方';
+const inLib = id => !!id && (SIM.lib || []).some(x => x.id === id);
+
+/* 条件字段：卡面、库里、对演三处共用同一套表单，改哪边都是同一组字段 */
+function simRow(k, v, warn){
+  const val = (v == null || v === '') ? '—' : v;
+  return '<div class="fr"><em>' + k + '</em><span' + (warn ? ' class="warn"' : '') + '>' + esc(val) + '</span></div>';
+}
+function simField(label, ctrl){
+  return '<label class="cfi"><span>' + label + '</span>' + ctrl + '</label>';
+}
+function cardForm(c){
+  c = c || {};
+  const rel = c.relation || '';
+  let relOpts = REL_OPTS.map(r => '<option value="' + esc(r) + '"' + (r === rel ? ' selected' : '') + '>' + esc(r) + '</option>').join('');
+  if(rel && REL_OPTS.indexOf(rel) < 0) relOpts += '<option value="' + esc(rel) + '" selected>' + esc(rel) + '（非三档）</option>';
+  if(!rel) relOpts = '<option value="">（未标关系）</option>' + relOpts;
+  let catOpts = CAT_OPTS.map(x => '<option value="' + esc(x) + '"' + (x === c.category ? ' selected' : '') + '>' + esc(x) + '</option>').join('');
+  if(c.category && CAT_OPTS.indexOf(c.category) < 0) catOpts = '<option value="' + esc(c.category) + '" selected>' + esc(c.category) + '</option>' + catOpts;
+  return '<div class="cf">'
+    + simField('标题', '<input data-f="name" maxlength="24" value="' + esc(c.name || '') + '">')
+    + simField('分类', '<select data-f="category">' + catOpts + '</select>')
+    + simField('关系', '<select data-f="relation" title="关系只有三档；具体是谁写在「对方是谁」——关系页只按三档统计">' + relOpts + '</select>')
+    + simField('场合', '<input data-f="setting" value="' + esc(c.setting || '') + '">')
+    + simField('卡点', '<input data-f="tension" value="' + esc(c.tension || '') + '">')
+    + '<div class="cf2">'
+    +   simField('对方是谁', '<input data-f="other_role" value="' + esc(c.other_role || '') + '">')
+    +   simField('对方想要', '<input data-f="other_goal" value="' + esc(c.other_goal || '') + '">')
+    + '</div>'
+    + simField('开场白', '<textarea data-f="opening" rows="2" placeholder="一句一行；只有第一句用来开局">'
+        + esc((c.opening || []).join('\n')) + '</textarea>')
+    + '</div>';
+}
+function cardRead(root, base){
+  const g = k => { const el = root.querySelector('[data-f="' + k + '"]'); return el ? String(el.value).trim() : ''; };
+  return Object.assign({}, base || {}, {
+    name: g('name'), category: g('category'), relation: g('relation'),
+    setting: g('setting'), tension: g('tension'),
+    other_role: g('other_role'), other_goal: g('other_goal'),
+    opening: g('opening').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 3)
+  });
+}
+
+
+function renderCoverage(list, root){
+  $('#sim-cov').innerHTML = (list || []).map(x => {
+    const name = x.label || x.page.replace('.md','');
+    return '<span class="tag ' + (x.segments ? 'ok' : 'no') + '">' + esc(name) + ' · ' + (x.segments ? x.segments + ' 段' : '缺') + '</span>';
+  }).join('');
+  $('#sim-root').textContent = root ? ('工作目录 ' + root + '　收稿后由你把 md 拖进 raw/') : '';
+}
+
+function renderSeed(id){
+  if(!id) return;
+  $('#sim-seed').textContent = id.filled + '/' + id.total + ' 节';
+  const tip = $('#sim-seed-tip');
+  if(id.chars < 60){
+    tip.textContent = '母本还没写，推出来的反应跟身份无关——去「身份」页写一句她是谁。';
+    tip.style.color = 'var(--warn)';
+  }else{
+    tip.textContent = '生成时会带上母本（' + id.chars + ' 字），话量 / 句长 / 语言三项只能从「说话习惯」那一节推。';
+    tip.style.color = '';
+  }
+}
+
+async function loadSim(){
+  try{
+    const d = await api('/api/sim/drafts');
+    SIM.label = d.self_label || '角色';
+    const tip = $('#sim-label-tip');
+    if(tip) tip.innerHTML = '<br>当前造料口吻：<b style="color:var(--accent-deep)">' + esc(SIM.label) + '</b>'
+      + '（跟着当前人格库走，卡片本身仍是全局的）';
+    const stim = $('#sim-stim');
+    if(stim && stim.options.length <= 1){
+      stim.innerHTML = '<option value="">不限刺激</option>'
+        + STIMULI.map(x => '<option value="' + x + '">' + x + '</option>').join('');
+    }
+    if(d.relations && d.relations.length) REL_OPTS = d.relations;
+    if(d.categories && d.categories.length) CAT_OPTS = d.categories;
+    renderSeed(d.identity);
+    renderCoverage(d.coverage, d.root);
+    renderLibrary(d.cards || []);
+    const sel = $('#sim-recent');
+    sel.innerHTML = '<option value="">最近改过的稿…</option>' + (d.drafts || []).map(x =>
+      '<option value="' + x.id + '">' + (x.exported || x.exported_reaction ? '✓ ' : '· ') + esc(x.name)
+        + (x.turns ? '（' + x.turns + ' 句）' : '') + '</option>'
+    ).join('');
+    if(SIM.draft) sel.value = SIM.draft.id;
+  }catch(e){ /* 面板没开时静默 */ }
+}
+
+function libEditor(c){
+  if(!c) return '';
+  return '<div class="lib-editor" data-lid="' + esc(c.id) + '">'
+    + '<div class="row" style="justify-content:space-between;margin-bottom:7px">'
+    +   '<b style="font-size:12px;color:var(--ink)">改库里的这张卡</b>'
+    +   '<span class="hint">卡只写条件，改完换人格库照样能用</span>'
+    + '</div>'
+    + cardForm(c)
+    + '<div class="row" style="margin-top:9px;gap:7px">'
+    +   '<button class="primary mini" data-lok="1">写回库</button>'
+    +   '<button class="mini" data-lcancel="1">取消</button>'
+    + '</div></div>';
+}
+
+function renderLibrary(cards){
+  SIM.lib = cards;
+  // 卡片库在 2026-10-27 挂起了，计数节点可能不存在；这里不能直接 .textContent，
+  // 一抛错整段 loadSim 就断在后面，连「最近改过的稿」下拉都填不上。
+  const cnt = $('#sim-lib-count');
+  if(cnt) cnt.textContent = cards.length;
+  const box = $('#sim-lib');
+  if(!box) return;
+  if(!cards.length){
+    box.innerHTML = '<div class="empty">还没收藏。生成几张，点卡片上的「收进库」。</div>';
+    return;
+  }
+  box.innerHTML = cards.map(c =>
+    '<div class="lib-item" data-lib="' + esc(c.id) + '">' +
+      '<b>' + esc(c.name) + '</b>' +
+      '<span class="use">' + esc(c.category || '') + (c.used ? ' · 用' + c.used : '') + '</span>' +
+      '<span class="x" data-libedit="' + esc(c.id) + '" title="改这张卡的条件">✎</span>' +
+      '<span class="x" data-del="' + esc(c.id) + '" title="移出库">×</span>' +
+    '</div>'
+  ).join('') + (SIM.libEdit ? libEditor(cards.find(x => x.id === SIM.libEdit)) : '');
+
+  box.querySelectorAll('.lib-item').forEach(el => {
+    el.onclick = ev => {
+      if(ev.target.dataset.del || ev.target.dataset.libedit) return;
+      startLib(el.dataset.lib);
+    };
+  });
+  box.querySelectorAll('[data-del]').forEach(el => {
+    el.onclick = ev => { ev.stopPropagation(); deleteLib(el.dataset.del); };
+  });
+  box.querySelectorAll('[data-libedit]').forEach(el => {
+    el.onclick = ev => {
+      ev.stopPropagation();
+      SIM.libEdit = SIM.libEdit === el.dataset.libedit ? null : el.dataset.libedit;
+      renderLibrary(SIM.lib);
+    };
+  });
+  const le = box.querySelector('.lib-editor');
+  if(le){
+    const card = (SIM.lib || []).find(x => x.id === le.dataset.lid);
+    le.querySelector('[data-lok]').onclick = async ev => {
+      ev.stopPropagation();
+      const next = cardRead(le, card);
+      if(!next.name){ toast('标题不能为空', 'err'); return; }
+      SIM.libEdit = null;
+      await pushCard(next, '已写回库 · ' + next.name);
+    };
+    le.querySelector('[data-lcancel]').onclick = ev => {
+      ev.stopPropagation(); SIM.libEdit = null; renderLibrary(SIM.lib);
+    };
+  }
+}
+
+function cardEditor(c, i){
+  return '<div class="sim-card editing" data-i="' + i + '">'
+    + '<div class="row" style="justify-content:space-between;margin-bottom:7px">'
+    +   '<b style="padding:0">改这张卡的条件</b>'
+    +   '<span class="hint">改完点保存，再点「模拟反应卡」生效</span>'
+    + '</div>'
+    + cardForm(c)
+    + '<div class="row" style="margin-top:9px;gap:7px">'
+    +   '<button class="primary mini" data-ceok="1">保存</button>'
+    +   '<button class="mini" data-cecancel="1">取消</button>'
+    + '</div></div>';
+}
+
+function renderCards(){
+  const box = $('#sim-cards');
+  if(!box) return;
+  const list = SIM.batch || [];
+  if(!list.length){
+    box.innerHTML = '<div class="empty">点「生成反应卡」：按母本推她会怎么回，一次 3 张</div>';
+    return;
+  }
+  box.innerHTML = list.map(x => {
+    const ok = x.status === 'ok';
+    const on = SIM.draft && SIM.draft.id === x.id;
+    const done = (x.draft && x.draft.exported_reaction) ? '✓ ' : '';
+    return '<div class="sim-card' + (on ? ' on' : '') + '" data-id="' + esc(x.id) + '">'
+      + '<span class="cat">' + esc(x.stimulus || '—') + '</span>'
+      + '<b>' + done + esc(x.scene || '（没写场景）') + '</b>'
+      + '<div class="fields">'
+      +   simRow('档位', x.level)
+      +   simRow(ok ? '校验' : '违规', ok ? '通过' : (x.violations || []).join('；'), !ok)
+      + '</div>'
+      + '<div class="row" style="margin-top:9px;gap:6px">'
+      +   '<button class="mini" data-pick="' + esc(x.id) + '">' + (on ? '正在改' : '编辑') + '</button>'
+      +   '<button class="primary mini" data-out="' + esc(x.id) + '">收反应卡</button>'
+      + '</div></div>';
+  }).join('');
+
+  box.querySelectorAll('.sim-card').forEach(el => {
+    el.onclick = ev => { if(ev.target.closest('button')) return; pickBatch(el.dataset.id); };
+  });
+  box.querySelectorAll('[data-pick]').forEach(el => {
+    el.onclick = ev => { ev.stopPropagation(); pickBatch(el.dataset.pick); };
+  });
+  box.querySelectorAll('[data-out]').forEach(el => {
+    el.onclick = ev => { ev.stopPropagation(); exportBatch(el.dataset.out); };
+  });
+}
+
+async function genReactions(){
+  const btn = $('#sim-gen');
+  if(btn){ btn.disabled = true; btn.textContent = '生成中…'; }
+  try{
+    const r = await api('/api/sim/reactgen', {method:'POST', body: JSON.stringify({
+      stimulus: ($('#sim-stim') || {}).value || '',
+      level: ($('#sim-relation') || {}).value || '',
+      n: 3
+    })});
+    SIM.batch = r.cards || [];
+    const bad = SIM.batch.filter(x => x.status !== 'ok').length;
+    if(bad) toast('出了 ' + SIM.batch.length + ' 张，其中 ' + bad + ' 张有违规，改完再收', 'err');
+    else toast('出了 ' + SIM.batch.length + ' 张', 'ok');
+    // 自动选中第一张干净的，省一次点击
+    const first = SIM.batch.find(x => x.status === 'ok') || SIM.batch[0];
+    if(first) await pickBatch(first.id);
+    else renderCards();
+    loadSim();
+  }catch(e){ toast(e.message, 'err'); }
+  finally { if(btn){ btn.disabled = false; btn.textContent = '生成反应卡'; } }
+}
+
+async function pickBatch(id){
+  if(!id) return;
+  try{
+    const r = await api('/api/sim/draft?id=' + encodeURIComponent(id));
+    if(!r.ok) throw new Error(r.error);
+    SIM.draft = r.draft;
+    SIM.reactPrev = r.reaction_preview || '';
+    SIM.reactId = '';
+    $('#sim-result').innerHTML = '';
+    // 从「最近改过的稿」进来的不在这一批里，补一条，否则列表上看不出正在改哪张
+    const rc = (r.draft.reactions || {}).card || {};
+    if(!(SIM.batch || []).some(x => x.id === r.draft.id)){
+      SIM.batch = [{
+        id: r.draft.id,
+        name: (r.draft.card || {}).name || '',
+        stimulus: rc.stimulus || '—',
+        level: (r.draft.card || {}).relation || '不分档',
+        scene: rc.scene || (r.draft.card || {}).name || '',
+        status: (r.draft.reactions || {}).status || 'blocked',
+        violations: (r.draft.reactions || {}).violations || [],
+        draft: r.draft
+      }].concat(SIM.batch || []);
+    }
+    renderCards();
+    reactCard(true);
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function exportBatch(id){
+  const item = (SIM.batch || []).find(x => x.id === id);
+  if(!item) return;
+  if(SIM.draft && SIM.draft.id === id){
+    return reactExport();
+  }
+  try{
+    const r = await api('/api/sim/export', {method:'POST', body: JSON.stringify({id, form: 'reaction'})});
+    toast('已收反应卡 → ' + r.name, 'ok');
+    await refreshBatch();
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function refreshBatch(){
+  // 只更新"已收/未收"这类状态，不重跑生成
+  const keep = SIM.draft ? SIM.draft.id : '';
+  try{
+    const d = await api('/api/sim/drafts');
+    const byId = {};
+    (d.drafts || []).forEach(x => { byId[x.id] = x; });
+    (SIM.batch || []).forEach(x => {
+      const hit = byId[x.id];
+      if(hit){ x.draft = Object.assign({}, x.draft || {}, {exported_reaction: hit.exported_reaction_name}); }
+    });
+  }catch(e){ /* 静默 */ }
+  if(keep) await pickBatch(keep); else renderCards();
+}
+
+async function commitCardEdit(el){
+  const i = SIM.cardEdit;
+  const card = cardRead(el, SIM.cards[i]);
+  if(!card.name){ toast('标题不能为空', 'err'); return; }
+  const lib = inLib(card.id);
+  SIM.cards[i] = card;
+  SIM.cardEdit = null;
+  renderCards();
+  if(lib) await pushCard(card, '已更新库里这张卡');
+}
+
+async function pushCard(card, okMsg){
+  try{
+    const r = await api('/api/sim/save-card', {method:'POST', body: JSON.stringify({card})});
+    if(!r.ok) throw new Error(r.error);
+    // 后端会给新卡发 id；带回来，卡面才能显示成「更新库」而不是又让你收一次
+    if(r.id) card.id = r.id;
+    card.origin = 'library';
+    toast(okMsg || ('已收进库 · 共 ' + r.total + ' 张'), 'ok');
+    await loadSim();
+    renderCards();
+    return true;
+  }catch(e){ toast('入库失败：' + e.message, 'err'); return false; }
+}
+
+async function saveCard(i){
+  const card = SIM.cards[i];
+  if(!card) return;
+  if(!card.name){ toast('标题不能为空', 'err'); return; }
+  await pushCard(card, inLib(card.id) ? '已更新库里这张卡' : '');
+}
+
+async function deleteLib(id){
+  const card = (SIM.lib || []).find(x => x.id === id);
+  if(!card) return;
+  if(!confirm('从库里移出「' + card.name + '」？这个动作不可撤销。')) return;
+  try{
+    const r = await api('/api/sim/delete-card', {method:'POST', body: JSON.stringify({id})});
+    if(!r.ok) throw new Error(r.error || '删除失败');
+    toast('已移出', 'ok');
+    loadSim();
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function drawFromLibrary(){
+  if(SIM.busy) return;
+  SIM.busy = true;
+  $('#sim-draw').disabled = true;
+  try{
+    const r = await api('/api/sim/draw', {method:'POST', body:'{}'});
+    if(!r.ok) throw new Error(r.error);
+    SIM.cards = r.cards || [];
+    SIM.cardEdit = null;
+    renderSeed(r.identity);
+    renderCards();
+  }catch(e){ toast(e.message, 'err'); }
+  finally{ SIM.busy = false; $('#sim-draw').disabled = false; }
+}
+
+async function genCards(){
+  if(SIM.busy) return;
+  SIM.busy = true;
+  $('#sim-gen').disabled = true;
+  $('#sim-draw').disabled = true;
+  $('#sim-cards').innerHTML = '<div class="empty">正在编情境…</div>';
+  try{
+    const r = await api('/api/sim/cards', {method:'POST',
+      body: JSON.stringify({relation: ($('#sim-relation') || {}).value || ''})});
+    if(!r.ok) throw new Error(r.error);
+    SIM.cards = r.cards || [];
+    SIM.cardEdit = null;
+    renderSeed(r.identity);
+    renderCards();
+  }catch(e){
+    $('#sim-cards').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  }finally{
+    SIM.busy = false;
+    $('#sim-gen').disabled = false;
+    $('#sim-draw').disabled = false;
+  }
+}
+
+/* ---------- 对演：条件与每一句都摊开可改 ---------- */
+
+function renderCond(){
+  const box = $('#sim-cond');
+  const d = SIM.draft;
+  if(!d){ box.innerHTML = ''; return; }
+  const c = d.card || {};
+  if(SIM.condEdit){
+    box.innerHTML = '<div class="condbar on">'
+      + '<div class="head"><b>当前条件</b><span class="hint">改完对下一轮候选生效</span></div>'
+      + cardForm(c)
+      + '<div class="row" style="margin-top:9px;gap:7px">'
+      +   '<button class="primary mini" data-cok="1">保存条件</button>'
+      +   '<button class="mini" data-ccancel="1">取消</button>'
+      + '</div></div>';
+    box.querySelector('[data-cok]').onclick = () => commitCond();
+    box.querySelector('[data-ccancel]').onclick = () => { SIM.condEdit = false; renderCond(); };
+    return;
+  }
+  box.innerHTML = '<div class="condbar">'
+    + '<div class="head"><b>当前条件</b><span class="act" data-cedit="1">改条件</span></div>'
+    + simRow('分类', c.category)
+    + simRow('关系', c.relation, !c.relation)
+    + simRow('场合', c.setting)
+    + simRow('卡点', c.tension)
+    + simRow('对方', [c.other_role, c.other_goal].filter(Boolean).join(' · '))
+    + '</div>';
+  box.querySelector('[data-cedit]').onclick = () => { SIM.condEdit = true; renderCond(); };
+}
+
+async function commitCond(){
+  const card = cardRead($('#sim-cond'), SIM.draft.card);
+  if(!card.name){ toast('标题不能为空', 'err'); return; }
+  try{
+    const r = await api('/api/sim/draft-card', {method:'POST', body: JSON.stringify({id: SIM.draft.id, card})});
+    if(!r.ok) throw new Error(r.error);
+    SIM.draft = r.draft;
+    SIM.condEdit = false;
+    renderSim();
+    toast('条件已改，下一轮候选按新的出', 'ok');
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+function renderMeta(){
+  const box = $('#sim-meta');
+  const d = SIM.draft;
+  if(!d || !d.turns.length){ box.innerHTML = ''; return; }
+  const human = d.turns.filter(t => t.source === 'human').length;
+  const ai = d.turns.filter(t => t.source === 'ai').length;
+  const dropped = d.dropped || [];
+  box.innerHTML = '<span>人工 <b>' + human + '</b> 句</span>'
+    + '<span>采纳 <b>' + ai + '</b> 句</span>'
+    + '<span>未采纳 <b>' + dropped.length + '</b> 条</span>'
+    + (d.created ? '<span>开稿 <b>' + esc(d.created) + '</b></span>' : '')
+    + (d.exported ? '<span>对话稿 <b>' + esc(d.exported) + '</b></span>' : '')
+    + (d.exported_reaction ? '<span>反应卡 <b>' + esc(d.exported_reaction) + '</b></span>' : '')
+    + (dropped.length
+      ? '<details class="dropped"><summary>看没被采纳的 ' + dropped.length + ' 条</summary><pre></pre></details>'
+      : '');
+  if(dropped.length){
+    box.querySelector('.dropped pre').textContent = dropped.map((x, i) => (i + 1) + '. ' + x).join('\n');
+  }
+}
+
+/* ---------- 反应卡：只留「怎么回」，不带场合/对方/台词 ---------- */
+
+const STIMULI = ['被逼近','被轻视','被关心','被示好','被道歉','被逗','被依赖','被误解','被索取','被试探','被指责','被冷落'];
+
+function reactStatus(){
+  const el = $('#sim-react-status');
+  const d = SIM.draft;
+  if(!el || !d) return;
+  const r = d.reactions || {};
+  const c = r.card || {};
+  if(!r.status){ el.textContent = ''; return; }
+  const bits = [];
+  if(r.status === 'blocked') bits.push('<span style="color:var(--err)">有违规：' + esc((r.violations || []).join('；')) + '</span>');
+  else bits.push('<span style="color:var(--ok)">校验通过</span>');
+  bits.push('刺激 ' + esc(c.stimulus || '—'));
+  bits.push('档位 ' + esc((d.card || {}).relation || '不分档'));
+  bits.push(r.reviewed ? '已过审' : '未过审');
+  if(r.exemplar) bits.push('可作范例');
+  if(r.at) bits.push('转于 ' + esc(r.at));
+  el.innerHTML = bits.join(' · ');
+  const out = $('#sim-react-out');
+  if(out) out.disabled = !(r.reviewed && r.status === 'ok');
+  const prev = $('#sim-react-prev');
+  if(prev && SIM.reactPrev){ prev.style.display = ''; prev.textContent = SIM.reactPrev; }
+}
+
+function reactForm(c, r){
+  const lv = k => (c[k] || []).join(' / ');
+  const stim = STIMULI.map(s => '<option value="' + s + '"' + (s === c.stimulus ? ' selected' : '') + '>' + s + '</option>').join('');
+  return '<div class="cf cf2" id="sim-react-form" style="margin-top:10px">'
+    + simField('刺激', '<select data-rf="stimulus">' + stim + '</select>')
+    + simField('场景', '<input data-rf="scene" maxlength="24" value="' + esc(c.scene || '') + '" placeholder="被什么逼到，不写谁">')
+    + simField('情绪起', '<input data-rf="emotion_from" maxlength="8" value="' + esc(c.emotion_from || '') + '">')
+    + simField('情绪止', '<input data-rf="emotion_to" maxlength="8" value="' + esc(c.emotion_to || '') + '">')
+    + simField('话量', '<input data-rf="volume" maxlength="16" value="' + esc(c.volume || '') + '">')
+    + simField('句长', '<input data-rf="length" maxlength="16" value="' + esc(c.length || '') + '">')
+    + simField('追问', '<input data-rf="probe" maxlength="20" value="' + esc(c.probe || '') + '">')
+    + simField('露出', '<input data-rf="emotion_shown" maxlength="12" value="' + esc(c.emotion_shown || '') + '">')
+    + '</div>'
+    + '<div class="cf" style="margin-top:7px">'
+    + simField('回应', '<input data-rf="moves" value="' + esc(lv('moves')) + '" placeholder="先反问 / 再给结论，写可检验的动作">')
+    + simField('语言', '<input data-rf="language" value="' + esc(lv('language')) + '" placeholder="句末少用问号 / 不用语气词">')
+    + simField('不做', '<input data-rf="avoid" value="' + esc(lv('avoid')) + '" placeholder="不道歉 / 不复述对方的话">')
+    + '</div>'
+    + '<div class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim)">'
+    +   '<label style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="sim-react-review"' + (r.reviewed ? ' checked' : '') + '> 已过审</label>'
+    +   '<label style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="sim-react-ex"' + (r.exemplar ? ' checked' : '') + '> 可作范例（进 exemplars 的「行为范例」）</label>'
+    + '</div>'
+    + '<div class="row" style="margin-top:8px;gap:7px">'
+    +   '<input id="sim-react-example" maxlength="40" value="' + esc(r.example || '') + '" placeholder="例句（可选，≤40 字）：勾了范例才用得上，能当 few-shot" autocomplete="off">'
+    +   '<button class="mini" id="sim-react-example-go" title="按这张卡和母本，让她自己说一句（人名会自动拦）">AI 生成</button>'
+    + '</div>'
+    + '<div class="row" style="margin-top:9px;gap:7px;flex-wrap:wrap">'
+    +   '<button class="primary mini" id="sim-react-save">保存卡片</button>'
+    +   '<span class="hint">没过审不许勾范例；没勾范例，用途里不会出现 exemplars.md</span>'
+    + '</div>';
+}
+
+function reactCard(force){
+  const box = $('#sim-react');
+  const d = SIM.draft;
+  if(!box) return;
+  if(!d){ box.innerHTML = ''; SIM.reactId = ''; return; }
+  // 同一稿已经画过就不重画：正在敲的字会被冲掉
+  if(!force && SIM.reactId === d.id){ reactStatus(); return; }
+  SIM.reactId = d.id;
+
+  const r = d.reactions || {};
+  const has = !!Object.keys(r.card || {}).length;
+  const fromTurns = (d.turns || []).length > 0;
+  box.innerHTML = '<div style="margin-top:12px">'
+    + '<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">'
+    +   '<span class="hint">按身份母本推出来的，成品里没有场合、没有对方、没有一句台词 · 想换一张就重新生成</span>'
+    +   '<div class="row" style="gap:7px">'
+    +     '<button class="primary mini" id="sim-react-out" disabled>收反应卡</button>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="hint" id="sim-react-status" style="margin-top:7px"></div>'
+    + (has
+        ? reactForm(r.card || {}, r)
+        : '<div class="empty" style="margin-top:10px">这张稿还没有反应卡。'
+          + (fromTurns ? '这一稿带台词，可点下面的「从台词抽象」。' : '点上面的「生成反应卡」直接按母本出一批。')
+          + '</div>')
+    + (fromTurns ? '<div class="row" style="margin-top:8px"><button class="mini" id="sim-react-go">从台词抽象</button></div>' : '')
+    + '<pre id="sim-react-prev" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:11px;line-height:1.6;white-space:pre-wrap;color:var(--dim)"></pre>'
+    + '</div>';
+
+  const go = $('#sim-react-go');
+  if(go) go.onclick = reactGenerate;
+  const out = $('#sim-react-out');
+  if(out) out.onclick = reactExport;
+  const save = $('#sim-react-save');
+  if(save) save.onclick = reactSave;
+  const exgo = $('#sim-react-example-go');
+  if(exgo) exgo.onclick = reactExampleGen;
+  reactStatus();
+}
+
+function reactRead(){
+  const box = $('#sim-react-form');
+  if(!box) return null;
+  const g = k => { const el = box.querySelector('[data-rf="' + k + '"]'); return el ? String(el.value).trim() : ''; };
+  const arr = (s, n) => s.split(/[\/、,，;；]/).map(x => x.trim()).filter(Boolean).slice(0, n);
+  return {
+    stimulus: g('stimulus'), scene: g('scene'),
+    emotion_from: g('emotion_from'), emotion_to: g('emotion_to'),
+    moves: arr(g('moves'), 4), volume: g('volume'), length: g('length'),
+    probe: g('probe'), emotion_shown: g('emotion_shown'),
+    language: arr(g('language'), 4), avoid: arr(g('avoid'), 3)
+  };
+}
+
+async function reactGenerate(){
+  const d = SIM.draft;
+  if(!d) return;
+  const btn = $('#sim-react-go');
+  if(btn){ btn.disabled = true; btn.textContent = '模拟中…'; }
+  try{
+    // 有台词的老稿（蒸馏台带进来的）走抽象，没有台词走母本模拟
+    const fromTurns = (d.turns || []).length > 0;
+    const r = await api('/api/sim/reaction', {method:'POST', body: JSON.stringify({id: d.id, from_turns: fromTurns})});
+    SIM.draft = Object.assign({}, SIM.draft, {reactions: r.reaction});
+    SIM.reactPrev = r.preview || '';
+    if(r.status === 'blocked') toast('出来了但有违规：' + (r.violations || []).join('；'), 'err');
+    else toast('反应卡已生成', 'ok');
+    reactCard(true);
+  }catch(e){ toast(e.message, 'err'); }
+  finally { if(btn){ btn.disabled = false; btn.textContent = '重新模拟'; } }
+}
+
+async function reactExampleGen(){
+  const d = SIM.draft;
+  if(!d) return;
+  const btn = $('#sim-react-example-go');
+  if(btn){ btn.disabled = true; btn.textContent = '生成中…'; }
+  try{
+    const r = await api('/api/sim/react/example', {method:'POST', body: JSON.stringify({id: d.id})});
+    if(!r.ok) throw new Error(r.error);
+    // 只填框不落盘：确认或手改后再点「保存卡片」，最后过校验
+    $('#sim-react-example').value = r.example;
+    toast('例句已生成，确认后点「保存卡片」', 'ok');
+  }catch(e){ toast('例句生成失败：' + e.message, 'err'); }
+  finally { if(btn){ btn.disabled = false; btn.textContent = 'AI 生成'; } }
+}
+
+async function reactSave(){
+  const d = SIM.draft;
+  if(!d || !Object.keys((d.reactions || {}).card || {}).length) return;
+  const card = reactRead();
+  if(!card) return;
+  try{
+    const r = await api('/api/sim/reaction/update', {method:'POST', body: JSON.stringify({
+      id: d.id, card,
+      reviewed: $('#sim-react-review').checked,
+      exemplar: $('#sim-react-ex').checked,
+      example: $('#sim-react-example').value
+    })});
+    SIM.draft = r.draft;
+    SIM.reactPrev = r.preview || '';
+    toast('卡片已保存', 'ok');
+  }catch(e){
+    toast(e.message, 'err');
+  }
+  // 无论成败都按服务端状态重画：勾选框不能停在"看起来勾上了但没存"
+  reactCard(true);
+}
+
+async function reactExport(){
+  const d = SIM.draft;
+  if(!d) return;
+  // 批注输入框在对演那块（已隐藏），看不见时沿用稿子里原有的批注，别把它清空
+  const noteEl = $('#sim-note');
+  const note = (noteEl && noteEl.offsetParent) ? noteEl.value : (d.note || '');
+  try{
+    const r = await api('/api/sim/export', {method:'POST', body: JSON.stringify({id: d.id, form: 'reaction', note})});
+    if(r.draft) SIM.draft = r.draft;
+    SIM.reactPrev = r.markdown || SIM.reactPrev;
+    toast('已收反应卡 → ' + r.name, 'ok');
+    reactCard(true);
+    if((SIM.batch || []).length) await refreshBatch(); else loadSim();
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+function turnLine(t, i){
+  const who = t.role === 'self' ? SIM.label : '对方';  const src = t.source === 'ai' ? '采纳' : (t.source === 'card' ? '开场' : (t.source === 'human' ? '手写' : ''));
+  return '<div class="sim-line ' + (t.role === 'self' ? 'self' : '') + '">' +
+    '<span class="who">' + esc(who) + '</span>' +
+    '<span class="txt" data-i="' + i + '">' + esc(t.text) + '</span>' +
+    (src ? '<span class="src">' + src + '</span>' : '') +
+    '<span class="acts">' +
+      '<span class="act" data-act="text" data-i="' + i + '" title="改这句；改成空就是删掉">改</span>' +
+      '<span class="act" data-act="role" data-i="' + i + '" title="这句改记到' + (t.role === 'self' ? '对方' : '她') + '名下">换人</span>' +
+      '<span class="act" data-act="up" data-i="' + i + '" title="上移一位">↑</span>' +
+      '<span class="act" data-act="down" data-i="' + i + '" title="下移一位">↓</span>' +
+      '<span class="act del" data-act="del" data-i="' + i + '" title="删掉这句">删</span>' +
+    '</span>' +
+  '</div>';
+}
+
+function insertSlot(at){
+  if(SIM.insertAt === at){
+    return '<div class="inscomp" data-at="' + at + '">'
+      + '<div class="row" style="gap:8px;margin-bottom:7px">'
+      +   '<select data-ins-role style="width:auto"><option value="other">对方</option>'
+      +     '<option value="self">' + esc(SIM.label) + '</option></select>'
+      +   '<span class="hint">' + (at ? '插在第 ' + at + ' 句之后' : '插在开头') + '</span>'
+      + '</div>'
+      + '<textarea data-ins-text rows="2" placeholder="要补的一句（Enter 插入，Shift+Enter 换行）"></textarea>'
+      + '<div class="row" style="margin-top:7px;gap:7px">'
+      +   '<button class="primary mini" data-ins-ok="1">插入</button>'
+      +   '<button class="mini" data-ins-cancel="1">取消</button>'
+      + '</div></div>';
+  }
+  return '<div class="insline" data-at="' + at + '"><span class="plus" data-ins="' + at + '">+ 插一句</span></div>';
+}
+
+function bindInsComp(comp){
+  const ta = comp.querySelector('[data-ins-text]');
+  const roleSel = comp.querySelector('[data-ins-role]');
+  roleSel.value = opposite();
+  const go = () => doInsert(+comp.dataset.at, roleSel.value, ta.value);
+  comp.querySelector('[data-ins-ok]').onclick = ev => { ev.stopPropagation(); go(); };
+  comp.querySelector('[data-ins-cancel]').onclick = ev => {
+    ev.stopPropagation(); SIM.insertAt = null; renderSim();
+  };
+  ta.onkeydown = e => {
+    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); go(); }
+    else if(e.key === 'Escape'){ e.preventDefault(); SIM.insertAt = null; renderSim(); }
+  };
+  ta.focus();
+}
+
+async function turnOp(payload){
+  if(!SIM.draft) return false;
+  try{
+    const r = await api('/api/sim/turn', {method:'POST',
+      body: JSON.stringify(Object.assign({id: SIM.draft.id}, payload))});
+    if(!r.ok) throw new Error(r.error);
+    SIM.draft = r.draft;
+    renderSim();
+    return true;
+  }catch(e){ toast(e.message, 'err'); renderSim(); return false; }
+}
+
+function onTurnAct(act, i){
+  const t = SIM.draft && SIM.draft.turns[i];
+  if(!t) return;
+  if(act === 'text') return beginEdit(i);
+  if(act === 'role') return turnOp({op:'role', index:i, role: t.role === 'self' ? 'other' : 'self'});
+  if(act === 'up') return turnOp({op:'move', index:i, dir:'up'});
+  if(act === 'down') return turnOp({op:'move', index:i, dir:'down'});
+  if(act === 'del'){
+    if(!confirm('删掉这句？\n「' + t.text.slice(0, 40) + '」')) return;
+    return turnOp({op:'delete', index:i});
+  }
+}
+
+async function doInsert(at, role, text){
+  text = (text || '').trim();
+  if(!text){ toast('还没写要插的话', 'err'); return; }
+  SIM.insertAt = null;
+  await turnOp({op:'insert', at, role, text});
+}
+
+function renderSim(){
+  const d = SIM.draft;
+  const log = $('#sim-log');
+  // 条件表单开着的时候别重画它，否则正在敲的字会被冲掉
+  if(!SIM.condEdit) renderCond();
+  reactCard();
+  if(!d){
+    log.innerHTML = '<div class="empty">先选一张情境卡</div>';
+    $('#sim-meta').innerHTML = '';
+    $('#sim-input').disabled = true; $('#sim-send').disabled = true; $('#sim-write').disabled = true;
+    return;
+  }
+
+  let html = '';
+  d.turns.forEach((t, i) => { html += turnLine(t, i) + insertSlot(i + 1); });
+  if(!d.turns.length){
+    html = '<div class="empty">这张卡没有开场白，你先说一句；也可以点「+ 插一句」直接补</div>' + insertSlot(0);
+  }
+  log.innerHTML = html;
+
+  log.querySelectorAll('[data-act]').forEach(el => {
+    el.onclick = ev => { ev.stopPropagation(); onTurnAct(el.dataset.act, +el.dataset.i); };
+  });
+  log.querySelectorAll('[data-ins]').forEach(el => {
+    el.onclick = ev => { ev.stopPropagation(); SIM.insertAt = +el.dataset.ins; renderSim(); };
+  });
+  const comp = log.querySelector('.inscomp');
+  if(comp) bindInsComp(comp);
+
+  log.scrollTop = log.scrollHeight;
+  renderMeta();
+  $('#sim-input').disabled = false;
+  $('#sim-send').disabled = false;
+  $('#sim-write').disabled = false;
+  const me = myRole(), ai = aiRole();
+  $('#sim-who').textContent = '你在说：' + (me === 'other' ? '对方' : '她本人');
+  $('#sim-write').textContent = '替' + (ai === 'other' ? '对面' : '她') + '写';
+  $('#sim-write').title = '把输入框这句直接记成' + (ai === 'other' ? '对面' : '她') + '的台词，不调 AI 出候选';
+  $('#sim-input').placeholder = me === 'other'
+    ? '你作为对方，说一句（Enter 发送）'
+    : '你替她说一句（Enter 发送）';
+  // 轮次提示：空候选区不该是一片空白，让人以为卡住了
+  $('#sim-mode-tip').textContent = 'AI 出「' + roleName(ai) + '」的候选，你打「' + roleName(me) + '」的台词';
+}
+
+function beginEdit(i){
+  if(!SIM.draft || !SIM.draft.turns[i]) return;
+  const txt = $('#sim-log').querySelector('.txt[data-i="' + i + '"]');
+  if(!txt || txt.isContentEditable) return;
+  const orig = SIM.draft.turns[i].text;
+  txt.dataset.cancel = '';
+  txt.contentEditable = 'true';
+  txt.classList.add('editing');
+  txt.focus();
+  const range = document.createRange();
+  range.selectNodeContents(txt);
+  const sel = window.getSelection();
+  sel.removeAllRanges(); sel.addRange(range);
+  txt.onkeydown = e => {
+    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); txt.blur(); }
+    else if(e.key === 'Escape'){ e.preventDefault(); txt.dataset.cancel = '1'; txt.textContent = orig; txt.blur(); }
+  };
+  txt.onblur = () => {
+    const cancelled = txt.dataset.cancel === '1';
+    txt.contentEditable = 'false';
+    txt.classList.remove('editing');
+    if(!cancelled) saveEdit(i, (txt.textContent || '').trim());
+  };
+}
+
+async function saveEdit(i, text){
+  // 原文就是空的、改完还是空的，别白跑一趟接口
+  const before = SIM.draft.turns[i] ? SIM.draft.turns[i].text : '';
+  if((before || '') === (text || '')) return;
+  await turnOp({op:'text', index:i, text: text || ''});
+}
+
+function renderCand(waiting){
+  const box = $('#sim-cand');
+  if(waiting){ box.innerHTML = '<div class="cand wait">… 正在想</div>'; return; }
+  if(!SIM.cand.length){ box.innerHTML = ''; return; }
+  // 标签跟着后端说的角色走，不再按下拉去猜：猜错了就会出现"写着对方、其实是她"
+  const role = SIM.candRole || aiRole();
+  box.innerHTML = '<div class="cand-head">' + roleName(role) + '可能的说法 · 点一条采纳，点「改」可以改字再用'
+    + '<span class="act" id="sim-again" title="同一段对话，再要一批">换一批</span></div>' +
+    SIM.cand.map((t, i) =>
+      '<div class="cand" data-i="' + i + '"><span class="idx">' + (i + 1) + '</span>' + esc(t) +
+      '<span class="pen" data-i="' + i + '">改</span></div>'
+    ).join('');
+  box.querySelectorAll('.cand').forEach(el => { el.onclick = () => adopt(+el.dataset.i); });
+  box.querySelectorAll('.pen').forEach(el => {
+    el.onclick = ev => { ev.stopPropagation(); editCand(+el.dataset.i); };
+  });
+  const again = box.querySelector('#sim-again');
+  if(again) again.onclick = ev => { ev.stopPropagation(); askCandidates(''); };
+}
+
+function editCand(i){
+  const box = $('#sim-cand');
+  const el = box.querySelector('.cand[data-i="' + i + '"]');
+  if(!el || SIM.cand[i] == null) return;
+  el.classList.add('editing');
+  el.onclick = null;
+  el.innerHTML = '<span class="idx">' + (i + 1) + '</span>' +
+    '<textarea class="cand-input" rows="2"></textarea>' +
+    '<div class="row" style="margin-top:7px;gap:7px">' +
+      '<button class="primary" data-use="1" style="padding:4px 12px;font-size:12px">用这句</button>' +
+      '<button data-cancel="1" style="padding:4px 10px;font-size:12px">算了</button>' +
+    '</div>';
+  const ta = el.querySelector('textarea');
+  ta.value = SIM.cand[i];
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  const use = () => {
+    const text = ta.value.trim();
+    if(!text){ toast('这句是空的', 'err'); return; }
+    adopt(i, text);
+  };
+  ta.onkeydown = e => {
+    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); use(); }
+    else if(e.key === 'Escape'){ e.preventDefault(); renderCand(false); }
+  };
+  el.querySelector('[data-use]').onclick = ev => { ev.stopPropagation(); use(); };
+  el.querySelector('[data-cancel]').onclick = ev => { ev.stopPropagation(); renderCand(false); };
+}
+
+async function askCandidates(text){
+  if(!SIM.draft) return false;
+  if(SIM.asking){ toast('上一批还在出', 'err'); return false; }
+  SIM.asking = true;
+  const id = SIM.draft.id;
+  renderCand(true);
+  try{
+    const r = await api('/api/sim/cand', {method:'POST', body: JSON.stringify({
+      id, text: text || '', role: myRole()
+    })});
+    // 等模型的时候可能已经换了稿子，这一批就别往新稿子上贴了
+    if(!SIM.draft || SIM.draft.id !== id) return false;
+    if(r.draft) SIM.draft = r.draft;
+    if(!r.ok) throw new Error(r.error);
+    SIM.cand = r.candidates || [];
+    SIM.candRole = r.role || aiRole();
+    renderSim(); renderCand(false);
+    return true;
+  }catch(e){
+    if(SIM.draft && SIM.draft.id === id){
+      SIM.cand = []; SIM.candRole = ''; renderCand(false); renderSim();
+    }
+    toast(e.message, 'err');
+    return false;
+  }finally{
+    SIM.asking = false;
+  }
+}
+
+/* 候选区一空就自动补一批：选完卡、采纳完、替写之后都不必再手动点。
+   只出「我没演的那一方」，所以它就是 AI 那一侧的下一个人台词。 */
+async function ensureCand(){
+  if(!SIM.draft || SIM.cand.length || SIM.asking) return false;
+  return askCandidates('');
+}
+
+async function startCard(card){
+  if(!card) return;
+  try{
+    const r = await api('/api/sim/draft', {method:'POST', body: JSON.stringify({card, mode: simMode()})});
+    if(!r.ok) throw new Error(r.error);
+    SIM.draft = r.draft; SIM.cand = []; SIM.candRole = '';
+    SIM.insertAt = null; SIM.condEdit = false;
+    $('#sim-note').value = ''; $('#sim-result').innerHTML = '';
+    renderSim(); renderCand(false);
+    await ensureCand();
+    loadSim();
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+function pickCard(i){ return startCard(SIM.cards[i]); }
+
+function startLib(id){
+  const card = (SIM.lib || []).find(x => x.id === id);
+  if(!card) return;
+  return startCard(Object.assign({}, card, {origin:'library'}));
+}
+
+async function adopt(i, text){
+  const orig = SIM.cand[i];
+  const use = String(text == null ? (orig || '') : text).trim();
+  if(!use) return;
+  const others = SIM.cand.filter((_, k) => k !== i);
+  // 改了字再用，原来那条也算没采纳，一起记进 dropped
+  if(orig && orig !== use) others.push(orig);
+  try{
+    const r = await api('/api/sim/commit', {method:'POST', body: JSON.stringify({
+      id: SIM.draft.id, role: aiRole(), text: use, source:'ai', dropped: others
+    })});
+    if(!r.ok) throw new Error(r.error);
+    SIM.draft = r.draft; SIM.cand = []; SIM.candRole = '';
+    renderSim(); renderCand(false); loadSim();
+    await ensureCand();
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function simSend(){
+  const inp = $('#sim-input');
+  const text = inp.value.trim();
+  if(!SIM.draft) return;
+  if(!text){ toast('先说一句', 'err'); return; }
+  inp.value = '';
+  const ok = await askCandidates(text);
+  // 出候选失败时把台词还回输入框，别让人白打一遍
+  if(!ok) inp.value = text;
+}
+
+async function simWrite(){
+  const inp = $('#sim-input');
+  const text = inp.value.trim();
+  if(!SIM.draft) return;
+  if(!text){ toast('先在输入框写下这句', 'err'); return; }
+  try{
+    const r = await api('/api/sim/commit', {method:'POST', body: JSON.stringify({
+      id: SIM.draft.id, role: aiRole(), text, source:'human'
+    })});
+    if(!r.ok) throw new Error(r.error);
+    SIM.draft = r.draft; SIM.cand = []; SIM.candRole = ''; inp.value = '';
+    renderSim(); renderCand(false);
+    await ensureCand();
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function simUndo(){
+  if(!SIM.draft) return;
+  try{
+    const r = await api('/api/sim/undo', {method:'POST', body: JSON.stringify({id: SIM.draft.id})});
+    if(!r.ok) throw new Error(r.error);
+    SIM.draft = r.draft; SIM.cand = []; SIM.candRole = '';
+    renderSim(); renderCand(false);
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function simExport(){
+  if(!SIM.draft) return;
+  try{
+    const r = await api('/api/sim/export', {method:'POST', body: JSON.stringify({
+      id: SIM.draft.id, note: $('#sim-note').value
+    })});
+    if(!r.ok) throw new Error(r.error);
+    $('#sim-result').innerHTML = '<div class="outbox">' +
+      '<div class="path">' + esc(r.path) + '</div>' +
+      '<div class="hint" style="margin:7px 0 9px">把这份 md 拖进 raw/ 即可，程序不碰 raw。同名不会覆盖，会自动加序号。</div>' +
+      '<div class="row"><button id="sim-copy">复制全文</button></div>' +
+      '<details style="margin-top:10px"><summary>看成品（' + r.markdown.length + ' 字符）</summary><pre></pre></details>' +
+      '</div>';
+    $('#sim-result').querySelector('pre').textContent = r.markdown;
+    $('#sim-copy').onclick = async () => {
+      try{ await navigator.clipboard.writeText(r.markdown); toast('已复制全文', 'ok'); }
+      catch(e){ toast('复制失败，手动选中', 'err'); }
+    };
+    toast('已收稿 → ' + r.name, 'ok');
+    loadSim();
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function loadDraft(id){
+  if(!id) return;
+  try{
+    const r = await api('/api/sim/draft?id=' + encodeURIComponent(id));
+    if(!r.ok) throw new Error(r.error);
+    SIM.draft = r.draft; SIM.cand = []; SIM.candRole = '';
+    SIM.insertAt = null; SIM.condEdit = false;
+    SIM.reactId = ''; SIM.reactPrev = r.reaction_preview || '';
+    $('#sim-mode').value = r.draft.mode || 'other';
+    $('#sim-result').innerHTML = '';
+    renderSim(); renderCand(false);
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+/* 换边：先把 mode 落盘，候选方向、标签、采纳归属才跟着一起变 */
+async function switchMode(){
+  if(!SIM.draft){ renderSim(); return; }
+  try{
+    const r = await api('/api/sim/mode', {method:'POST', body: JSON.stringify({
+      id: SIM.draft.id, mode: simMode()
+    })});
+    if(!r.ok) throw new Error(r.error);
+    SIM.draft = r.draft; SIM.cand = []; SIM.candRole = '';
+    renderSim(); renderCand(false);
+    await ensureCand();
+  }catch(e){ toast(e.message, 'err'); renderSim(); }
+}
+
+/* ---------- 蒸馏器 ---------- */
+const DS = {book:null, data:null, books:[], chaps:null, chapTotal:0};
+
+async function loadDistill(){
+  try{
+    const d = await api('/api/distill/books');
+    DS.books = d.books || [];
+    $('#ds-root').textContent = d.root ? ('工作目录 ' + d.root + '　成品在 out/，raw 仍由你自己搬') : '';
+    renderBooks(DS.books);
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+function renderBooks(books){
+  const box = $('#ds-books');
+  if(!books.length){
+    box.innerHTML = '<div class="empty">还没有书。选一个 txt，点「导入」。</div>';
+    return;
+  }
+  box.innerHTML = books.map(b =>
+    '<div class="bookrow' + (DS.book === b.id ? ' on' : '') + '" data-book="' + esc(b.id) + '">'
+    + '<b>' + esc(b.name) + '</b>'
+    + '<span class="bmeta">' + b.chapters + ' 章 · ' + (b.chars / 10000).toFixed(1) + ' 万字</span>'
+    + '<span class="bmeta">' + (b.character ? esc(b.character) + ' · ' + b.segments + ' 段' : '未提取') + '</span>'
+    + '</div>').join('');
+  box.querySelectorAll('[data-book]').forEach(el => { el.onclick = () => openBook(el.dataset.book); });
+}
+
+async function openBook(id){
+  try{
+    const d = await api('/api/distill/book?id=' + encodeURIComponent(id));
+    DS.book = id; DS.data = d;
+    DS.llmReady = d.llm_ready !== false;
+    $('#ds-book-name').textContent = d.book.name;
+    $('#ds-char').value = d.character || $('#ds-char').value;
+    $('#ds-alias').value = (d.aliases || []).join('，');
+    DS.chaps = new Set((d.selected && d.selected.length)
+      ? d.selected
+      : (d.chapters || []).map(c => c.index));
+    renderChapters(d);
+    renderStats(d);
+    renderSegs(d);
+    renderBooks(DS.books);
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+function renderStats(d){
+  const s = d.stats || {};
+  if(!d.character){
+    $('#ds-stats').textContent = '还没提取：填角色名，点「提取台词」。';
+    return;
+  }
+  const guess = (s.alternate || 0) + (s.pronoun || 0) + (s.same || 0) + (s.topic || 0);
+  const full = (d.chapters || []).length;
+  const scope = (d.selected && d.selected.length && d.selected.length < full)
+    ? ' · 仅 ' + d.selected.length + ' 章' : '';
+  const rx = Object.values(d.reactions || {});
+  const rxInfo = rx.length ? ' · 反应卡 ' + rx.length + ' 张（已审 ' + rx.filter(x => x.reviewed).length + '）' : '';
+  $('#ds-stats').innerHTML = '角色 <b>' + esc(d.character) + '</b> · 引号台词 ' + (s.quotes || 0)
+    + ' 句，收下 ' + (s.kept || 0) + ' 句，丢 ' + (s.dropped || 0)
+    + ' 句 · 成段 ' + (d.total || 0) + ' · 其中推定 ' + guess + ' 句' + scope + rxInfo;
+}
+
+function renderChapters(d){
+  const list = (d && d.chapters) || [];
+  DS.chapTotal = list.length;
+  const wrap = $('#ds-chap-wrap');
+  if(!list.length){ wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  if(!(DS.chaps instanceof Set)) DS.chaps = new Set(list.map(c => c.index));
+  $('#ds-chap-list').innerHTML = list.map(c => {
+    const on = DS.chaps.has(c.index);
+    return '<label class="dschap' + (on ? ' on' : '') + '" data-ch="' + c.index + '"'
+      + ' title="' + esc(c.chars + ' 字 / ' + c.paras + ' 段') + '">'
+      + '<span>' + (c.index + 1) + '</span><span class="t">' + esc(c.title) + '</span></label>';
+  }).join('');
+  document.querySelectorAll('#ds-chap-list [data-ch]').forEach(el => {
+    el.onclick = () => {
+      const i = parseInt(el.dataset.ch, 10);
+      if(DS.chaps.has(i)) DS.chaps.delete(i); else DS.chaps.add(i);
+      renderChapters(DS.data);
+    };
+  });
+  updateChapCount();
+}
+
+function updateChapCount(){
+  const n = DS.chaps ? DS.chaps.size : 0;
+  const t = DS.chapTotal || 0;
+  $('#ds-chap-count').textContent = !t ? '全部'
+    : (n === t ? '全部 ' + t + ' 章' : (n === 0 ? '未选（至少选一章）' : '已选 ' + n + ' / ' + t + ' 章'));
+}
+
+function applyChapRange(){
+  if(!DS.chapTotal){ toast('先选一本书', 'err'); return; }
+  let lo = parseInt($('#ds-chap-from').value, 10) || 1;
+  let hi = parseInt($('#ds-chap-to').value, 10) || DS.chapTotal;
+  if(lo > hi){ const t = lo; lo = hi; hi = t; }
+  lo = Math.max(1, lo); hi = Math.min(DS.chapTotal, hi);
+  DS.chaps = new Set();
+  for(let i = lo; i <= hi; i++) DS.chaps.add(i - 1);
+  renderChapters(DS.data);
+}
+
+function segHTML(seg, otherName){
+  const catOpts = (DS.data.categories || []).map(c =>
+    '<option' + (c === seg.category ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
+  const lines = (seg.lines || []).map((l, i) => {
+    const who = l.role === 'self' ? (DS.data.character || '角色') : '对方';
+    const isGuess = (l.mode === 'alternate' || l.mode === 'pronoun' || l.mode === 'same'
+        || l.mode === 'topic' || l.mode === 'cue_bound' || l.mode === 'llm');
+    // depth = 这句之前一共连猜了几步。交替推是一串串错的，猜得越远越不可信，
+    // 所以把"远推"单独标出来——人先看浅的，深的那批最后扫一眼就行。
+    const deep = isGuess && (l.depth || 0) >= 6;
+    const guess = isGuess
+      ? '<span class="guess' + (deep ? ' deep' : '') + '" title="'
+        + (deep ? '前面已经连猜 ' + l.depth + ' 步，整串里错一句就跟着错' : '没写明确说话人，按上下文推的')
+        + '">' + (deep ? '远推 ' + l.depth : '推定') + '</span>'
+      : '';
+    return '<div class="ds-line">'
+      + '<span class="who' + (l.role === 'self' ? ' self' : '') + '">' + esc(who) + '</span>'
+      + '<span class="txt">' + (l.action ? '（' + esc(l.action) + '）' : '') + esc(l.text) + guess + '</span>'
+      + '<span class="ops">'
+      +   '<span class="op" data-op="role" data-i="' + i + '" title="这句改成另一方说">换人</span>'
+      +   '<span class="op del" data-op="del" data-i="' + i + '" title="这句不要了">删</span>'
+      + '</span></div>';
+  }).join('');
+  return '<div class="ds-seg" data-seg="' + esc(seg.id) + '">'
+    + '<div class="head"><b>' + esc(seg.name) + '</b>'
+    +   '<span class="bmeta">' + esc(seg.chapter_title) + ' · ' + (seg.lines || []).length + ' 句</span></div>'
+    + '<div class="ds-fields">'
+    +   '<input data-f="name" value="' + esc(seg.name) + '" title="段名">'
+    +   '<select data-f="category" title="分类决定用途">' + catOpts + '</select>'
+    +   '<input data-f="setting" value="' + esc(seg.setting) + '" title="场合">'
+    +   '<input data-f="tension" value="' + esc(seg.tension) + '" title="卡点">'
+    +   '<input data-f="other_role" value="' + esc(seg.other_role) + '" title="对方是谁">'
+    +   '<input data-f="other_goal" value="' + esc(seg.other_goal) + '" title="对方想要什么">'
+    + '</div>'
+    + '<div>' + lines + '</div>'
+    + '<div class="row" style="margin-top:9px;gap:7px;flex-wrap:wrap">'
+    +   '<button class="mini" data-act="sim">导进素材台</button>'
+    +   '<button class="mini" data-act="lib">收进卡片库</button>'
+    +   '<button class="mini" data-act="md">导出这段</button>'
+    +   '<button class="mini" data-act="react"' + (DS.llmReady === false ? ' disabled title="反应卡要调模型，先在「配置」页填 API Key"' : ' title="抽象成「这类刺激怎么回」，不含对白与人名"') + '>转反应卡</button>'
+    + '</div>'
+    + reactHTML((DS.data.reactions || {})[seg.id])
+    + '</div>';
+}
+
+const STIM_OPTS = ['被逼近', '被轻视', '被关心', '被示好', '被道歉', '被逗', '被依赖', '被误解', '被索取', '被试探', '被指责', '被冷落'];
+
+function reactHTML(r){
+  if(!r) return '';
+  if(r.status === 'blocked'){
+    return '<div class="ds-react blocked">'
+      + '<div class="head"><b>反应卡：没过校验</b><span class="bmeta">blocked</span></div>'
+      + '<div class="hint" style="color:var(--err);margin-top:6px">'
+      +   esc((r.violations || []).join('；') || '模型没给出可用卡片') + '</div>'
+      + '<div class="row" style="margin-top:8px"><button class="mini" data-ract="regen">重转一次</button></div>'
+      + '</div>';
+  }
+  const c = r.card || {};
+  const val = k => Array.isArray(c[k]) ? c[k].join(' / ') : (c[k] || '');
+  const input = (k, label, wide) => '<label class="rff' + (wide ? ' wide' : '') + '"><span>' + label + '</span>'
+    + '<input data-rf="' + k + '" value="' + esc(val(k)) + '"></label>';
+  const stim = '<label class="rff"><span>刺激</span><select data-rf="stimulus">'
+    + STIM_OPTS.map(x => '<option' + (x === c.stimulus ? ' selected' : '') + '>' + x + '</option>').join('')
+    + '</select></label>';
+  const lv = '<label class="rff"><span>档位（你判断）</span><select data-rf="level">'
+    + '<option value="">不分档</option>'
+    + ['拥有者', '熟人', '陌生人'].map(x =>
+        '<option' + (x === c.level ? ' selected' : '') + '>' + x + '</option>').join('')
+    + '</select></label>';
+  return '<div class="ds-react">'
+    + '<div class="head"><b>反应卡</b>'
+    +   '<span class="bmeta">' + (r.reviewed ? '已过审' : '待审') + ' · 只进 reactions / speech · medium</span></div>'
+    + '<div class="rf">'
+    +   lv + stim + input('scene', '场景')
+    +   input('emotion_from', '情绪起') + input('emotion_to', '情绪落')
+    +   input('moves', '回应（用 / 分隔）', true) + input('volume', '话量')
+    +   input('length', '句长') + input('probe', '追问')
+    +   input('emotion_shown', '露出') + input('language', '语言（用 / 分隔）', true)
+    +   input('avoid', '不做（用 / 分隔）', true)
+    + '</div>'
+    + '<div class="row" style="margin-top:8px;gap:9px;align-items:center;flex-wrap:wrap">'
+    +   '<label class="hint" style="display:flex;gap:6px;align-items:center;cursor:pointer">'
+    +     '<input type="checkbox" data-rv="1"' + (r.reviewed ? ' checked' : '') + '> 已过审</label>'
+    +   '<button class="mini" data-ract="export">导出这张</button>'
+    +   '<button class="mini" data-ract="regen">重转</button>'
+    +   '<span class="hint">改完自动存；没过审导不出去</span>'
+    + '</div></div>';
+}
+
+function renderSegs(d){
+  const box = $('#ds-segs');
+  const segs = d.segments || [];
+  $('#ds-total').textContent = d.total || 0;
+  if(!segs.length){
+    box.innerHTML = '<div class="empty">'
+      + (d.character ? '没有凑够成段的对话。换个角色，或把「成段最少句数」调低。' : '还没有提取结果')
+      + '</div>';
+    return;
+  }
+  box.innerHTML = segs.map(seg => segHTML(seg)).join('')
+    + (d.total > segs.length ? '<div class="hint">只显示前 ' + segs.length + ' 段，共 ' + d.total + ' 段；导出会带上全部。</div>' : '');
+  bindSegs();
+}
+
+function bindSegs(){
+  document.querySelectorAll('#ds-segs .ds-seg').forEach(el => {
+    const id = el.dataset.seg;
+    el.querySelectorAll('[data-f]').forEach(inp => {
+      inp.onchange = () => saveSeg(id, { [inp.dataset.f]: inp.value });
+    });
+    el.querySelectorAll('[data-op]').forEach(a => {
+      a.onclick = () => lineOp(id, parseInt(a.dataset.i, 10), a.dataset.op);
+    });
+    const act = (name, fn) => { const b = el.querySelector('[data-act="' + name + '"]'); if(b) b.onclick = fn; };
+    act('sim', () => toSimSeg(id));
+    act('lib', () => toLibSeg(id));
+    act('md', () => exportSeg([id]));
+    act('react', () => toReact(id));
+
+    const card = el.querySelector('.ds-react');
+    if(card){
+      card.querySelectorAll('[data-rf]').forEach(inp => { inp.onchange = () => saveReact(id); });
+      const rv = card.querySelector('[data-rv]');
+      if(rv) rv.onchange = () => reviewReact(id, rv.checked);
+      card.querySelectorAll('[data-ract]').forEach(b => {
+        b.onclick = () => {
+          if(b.dataset.ract === 'export') exportReact([id]);
+          else toReact(id);
+        };
+      });
+    }
+  });
+}
+
+async function toReact(id){
+  if(!DS.book) return;
+  const btn = document.querySelector('.ds-seg[data-seg="' + id + '"] [data-act="react"]');
+  if(btn){ btn.disabled = true; btn.textContent = '抽象中…'; }
+  try{
+    const r = await api('/api/distill/react', {method:'POST', body: JSON.stringify({ book: DS.book, id })});
+    DS.data.reactions = r.reactions || DS.data.reactions || {};
+    if(r.status !== 'ok'){
+      toast('没过校验：' + ((r.violations || [])[0] || '模型没给出可用卡片'), 'err');
+    }else{
+      toast('反应卡已生成，记得过一眼再勾「已过审」', 'ok');
+    }
+    await openBook(DS.book);
+  }catch(e){
+    toast(e.message, 'err');
+    if(btn){ btn.disabled = false; btn.textContent = '转反应卡'; }
+  }
+}
+
+function readReact(id){
+  const el = document.querySelector('.ds-seg[data-seg="' + id + '"] .ds-react');
+  if(!el) return null;
+  const card = {};
+  el.querySelectorAll('[data-rf]').forEach(inp => {
+    const k = inp.dataset.rf;
+    const raw = String(inp.value || '').trim();
+    card[k] = (k === 'moves' || k === 'language' || k === 'avoid')
+      ? raw.split('/').map(s => s.trim()).filter(Boolean)
+      : raw;
+  });
+  return card;
+}
+
+async function saveReact(id){
+  const card = readReact(id);
+  if(!card) return;
+  try{
+    const r = await api('/api/distill/react/update', {method:'POST', body: JSON.stringify({
+      book: DS.book, id, card
+    })});
+    DS.data.reactions = r.reactions || DS.data.reactions || {};
+    if(r.reaction && r.reaction.status === 'blocked'){
+      toast('改出违规了：' + ((r.reaction.violations || [])[0] || ''), 'err');
+      await openBook(DS.book);
+    }else{
+      toast('已保存', 'ok');
+    }
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function reviewReact(id, checked){
+  try{
+    const r = await api('/api/distill/react/update', {method:'POST', body: JSON.stringify({
+      book: DS.book, id, reviewed: !!checked
+    })});
+    DS.data.reactions = r.reactions || DS.data.reactions || {};
+    toast(checked ? '已过审，可以导出了' : '已取消过审', 'ok');
+    await openBook(DS.book);
+  }catch(e){
+    toast(e.message, 'err');
+    await openBook(DS.book);
+  }
+}
+
+async function exportReact(ids){
+  if(!DS.book) return;
+  try{
+    const r = await api('/api/distill/react/export', {method:'POST', body: JSON.stringify({
+      book: DS.book, ids: ids || []
+    })});
+    $('#ds-out').innerHTML = '已导出 ' + r.count + ' 张反应卡 → ' + esc(r.out_dir)
+      + (r.skipped ? '（跳过 ' + r.skipped + ' 张未过审）' : '') + '<br>'
+      + (r.files || []).map(f => esc(f.name)).join('<br>');
+    toast('反应卡已导出 ' + r.count + ' 张', 'ok');
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function saveSeg(id, changes){
+  try{
+    const r = await api('/api/distill/segment', {method:'POST', body: JSON.stringify({
+      book: DS.book, id, changes
+    })});
+    const seg = (DS.data.segments || []).find(x => x.id === id);
+    if(seg) Object.assign(seg, r.segment);
+    toast('已保存', 'ok');
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function lineOp(id, index, op){
+  const seg = (DS.data.segments || []).find(x => x.id === id);
+  const line = seg && seg.lines ? seg.lines[index] : null;
+  if(!line) return;
+  const role = op === 'del' ? 'drop' : (line.role === 'self' ? 'other' : 'self');
+  try{
+    await api('/api/distill/line', {method:'POST', body: JSON.stringify({ book: DS.book, id, index, role })});
+    await openBook(DS.book);
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function runExtract(){
+  if(!DS.book){ toast('先选一本书', 'err'); return; }
+  const character = $('#ds-char').value.trim();
+  if(!character){ toast('填一个角色名', 'err'); return; }
+  const total = DS.chapTotal || 0;
+  const picked = DS.chaps ? [...DS.chaps].sort((a, b) => a - b) : [];
+  if(total && !picked.length){ toast('至少选一章再提取', 'err'); return; }
+  // 全选时传空数组：后端的空数组就是"全书"，省得把几百个章号写进结果文件
+  const scope = (total && picked.length === total) ? [] : picked;
+  const btn = $('#ds-run');
+  btn.disabled = true; btn.textContent = '认台词…';
+  try{
+    const r = await api('/api/distill/extract', {method:'POST', body: JSON.stringify({
+      book: DS.book, character, aliases: $('#ds-alias').value,
+      limit: 200, chapters: scope
+    })});
+    DS.data = Object.assign({}, DS.data, {
+      character: r.character, aliases: r.aliases, level: r.level,
+      stats: r.stats, total: r.total, segments: r.segments, selected: r.chapters || []
+    });
+    toast('提取完成 · ' + r.total + ' 段', 'ok');
+    await loadDistill();
+    // 段 id 会重排，反应卡按段落位置存，重新拉一次才不会把旧卡挂错段
+    await openBook(DS.book);
+  }catch(e){ toast(e.message, 'err'); }
+  finally{ btn.disabled = false; btn.textContent = '提取台词'; }
+}
+
+async function importBook(){
+  const f = $('#ds-file').files[0];
+  if(!f){ toast('先选一个 txt 文件', 'err'); return; }
+  const btn = $('#ds-import');
+  btn.disabled = true; btn.textContent = '导入中…';
+  try{
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    let bin = '';
+    for(let i = 0; i < bytes.length; i += 0x8000){
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    const r = await api('/api/distill/import', {method:'POST', body: JSON.stringify({
+      name: f.name.replace(/\.[^.]+$/, ''), b64: btoa(bin)
+    })});
+    toast((r.reused ? '这本书已在库里' : '已导入') + ' · ' + r.chapters + ' 章', 'ok');
+    await loadDistill();
+    await openBook(r.id);
+  }catch(e){ toast(e.message, 'err'); }
+  finally{ btn.disabled = false; btn.textContent = '导入'; }
+}
+
+async function exportSeg(ids){
+  if(!DS.book){ toast('先选一本书', 'err'); return; }
+  try{
+    const r = await api('/api/distill/export', {method:'POST', body: JSON.stringify({ book: DS.book, ids })});
+    $('#ds-out').innerHTML = '已导出 ' + r.count + ' 段 → ' + esc(r.out_dir) + '<br>'
+      + (r.files || []).map(f => esc(f.name)).join('<br>');
+    toast('已导出 ' + r.count + ' 段', 'ok');
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function toSimSeg(id){
+  if(!DS.book) return;
+  try{
+    const r = await api('/api/distill/to-sim', {method:'POST', body: JSON.stringify({ book: DS.book, id })});
+    toast('已开进素材台 · ' + (r.draft.turns || []).length + ' 句', 'ok');
+    document.querySelector('.tab[data-tab="sim"]')?.click();
+    await loadSim();
+    await loadDraft(r.draft_id);
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function toLibSeg(id){
+  if(!DS.book) return;
+  try{
+    const r = await api('/api/distill/to-library', {method:'POST', body: JSON.stringify({ book: DS.book, id })});
+    toast(r.existed ? '库里已有同名卡 · ' + r.total + ' 张' : '已收进卡片库 · ' + r.total + ' 张', 'ok');
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+/* ---------- bind ---------- */
+$('#btn-send').onclick = sendChat;
+$('#chat-input').onkeydown = e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); } };
+$('#btn-clear-chat').onclick = async () => {
+  try{ await api('/api/chat/clear', {method:'POST', body:'{}'});
+       $('#chatlog').innerHTML = '<div class="empty" id="chat-empty">还没有对话 · 输入一句话，看它怎么接</div>';
+       toast('已清空调试会话', 'ok'); }
+  catch(e){ toast(e.message, 'err'); }
+};
+$('#btn-save').onclick = () => saveConfig(false);
+$('#btn-save-top').onclick = async () => {
+  if(!CFG) await loadConfig();
+  await saveConfig(false);
+};
+window.addEventListener('beforeunload', e => {
+  if(CFG_DIRTY){ e.preventDefault(); e.returnValue = ''; }
+});
+$('#btn-reload-persona').onclick = async () => {
+  try{ await api('/api/persona/reload', {method:'POST', body:'{}'}); await loadPersona(); toast('人格库已重载', 'ok'); }
+  catch(e){ toast(e.message, 'err'); }
+};
+$('#btn-scroll').onclick = () => {
+  follow = !follow;
+  $('#btn-scroll').textContent = follow ? '跟随' : '暂停';
+  $('#btn-scroll').style.color = follow ? '' : 'var(--warn)';
+  if(follow){ const b = $('#logs'); b.scrollTop = b.scrollHeight; }
+};
+
+/* ---------- 素材台绑定 ---------- */
+$('#sim-gen').onclick = genReactions;
+$('#sim-draw').onclick = drawFromLibrary;
+$('#sim-send').onclick = simSend;
+$('#sim-write').onclick = simWrite;
+$('#sim-undo').onclick = simUndo;
+$('#sim-save').onclick = simExport;
+$('#sim-mode').onchange = switchMode;
+$('#sim-recent').onchange = e => pickBatch(e.target.value);
+$('#sim-input').onkeydown = e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); simSend(); } };
+
+/* ---------- 蒸馏器绑定 ---------- */
+$('#ds-import').onclick = importBook;
+$('#ds-run').onclick = runExtract;
+$('#ds-export-all').onclick = () => exportSeg([]);
+$('#ds-react-export').onclick = () => exportReact([]);
+$('#ds-chap-apply').onclick = applyChapRange;
+$('#ds-chap-all').onclick = () => {
+  if(!DS.chapTotal) return;
+  DS.chaps = new Set((DS.data.chapters || []).map(c => c.index));
+  renderChapters(DS.data);
+};
+$('#ds-chap-none').onclick = () => { DS.chaps = new Set(); renderChapters(DS.data); };
+
+/* ---------- 总端：人格库 ---------- */
+let HUB = {personas:[], active:''};
+let SHOW_ARCH = false;
+
+function fmtTs(t){
+  if(!t) return '';
+  const d = new Date(t * 1000), p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+async function loadHub(){
+  try{
+    HUB = await api('/api/personas');
+  }catch(e){
+    $('#hub-grid').innerHTML = '<div class="empty">读不到人格库列表：' + esc(e.message) + '</div>';
+    return;
+  }
+  renderHub();
+  try{
+    const s = await api('/api/status');
+    $('#h-dot').className = 'dot ' + (s.connected ? 'on' : (s.running ? '' : 'off'));
+    $('#h-conn').textContent = s.connected ? '已连接' : (s.running ? '连接中' : '未连接');
+  }catch(e){ $('#h-conn').textContent = '状态未知'; }
+  const act = HUB.personas.find(p => p.id === HUB.active);
+  $('#h-active').textContent = act ? act.name : '未指定';
+}
+
+function pcardHTML(p){
+  const ratio = (p.filled || 0) + '/' + (p.max_pages || 9);
+  const sum = p.summary ? esc(p.summary) : '<span style="color:var(--ink-3)">未写一句话人设</span>';
+  const badges = (p.active ? '<span class="badge">运行中</span>' : '')
+               + (p.archived ? '<span class="badge dim">已归档</span>' : '');
+  // 漂移状态一人一份存在库内，这里只是把它读出来看，没有数据就不显示
+  const dr = p.drift && p.drift.turns
+    ? `<span title="行为参数累计演化 ${esc(String(p.drift.turns))} 次，怕生 ${esc(String((p.drift.knobs||{}).shyness ?? '-'))}">漂移 ${esc(String(p.drift.turns))}</span>`
+    : '';
+  const acts = p.archived
+    ? `<button data-act="unarch" data-id="${esc(p.id)}">取消归档</button>`
+    : `<button class="go" data-act="go" data-id="${esc(p.id)}">进入</button>`
+      + (p.active ? '' : `<button data-act="arch" data-id="${esc(p.id)}">归档</button>`);
+  return `<div class="pcard ${p.active?'on':''} ${p.archived?'arch':''}" data-id="${esc(p.id)}">
+    <h3>${esc(p.name)} ${badges}</h3>
+    <div class="sum">${sum}</div>
+    <div class="meta">
+      <span>wiki ${ratio}</span>
+      <span>会话 ${p.sessions || 0}</span>
+      <span>消息 ${p.messages || 0}</span>
+      ${dr}
+      ${p.last_ts ? '<span>' + esc(fmtTs(p.last_ts)) + '</span>' : ''}
+    </div>
+    <div class="acts">${acts}</div>
+  </div>`;
+}
+
+function renderHub(){
+  const live = HUB.personas.filter(p => !p.archived);
+  const dead = HUB.personas.filter(p => p.archived);
+  const list = SHOW_ARCH ? live.concat(dead) : live;
+  const grid = $('#hub-grid');
+  grid.innerHTML = list.map(pcardHTML).join('')
+    + `<div class="pcard new" id="pcard-new">
+         <div class="plus">+</div>
+         <div>新建人格库</div>
+         <div style="font-size:11px">生成空骨架，等你塞素材</div>
+       </div>`;
+
+  grid.querySelectorAll('.pcard[data-id]').forEach(el => {
+    el.onclick = ev => { if(!ev.target.dataset.act) enterConsole(el.dataset.id); };
+  });
+  grid.querySelectorAll('button[data-act]').forEach(b => {
+    b.onclick = ev => {
+      ev.stopPropagation();
+      const id = b.dataset.id;
+      if(b.dataset.act === 'go') enterConsole(id);
+      else if(b.dataset.act === 'arch') archivePersona(id);
+      else unarchivePersona(id);
+    };
+  });
+  const nb = $('#pcard-new');
+  if(nb) nb.onclick = openNew;
+
+  $('#hub-count').textContent = `${live.length} 个人格库` + (dead.length ? ` · ${dead.length} 个已归档` : '');
+  $('#hub-toggle-arch').textContent = SHOW_ARCH ? '隐藏已归档' : '显示已归档';
+}
+
+function enterConsole(pid){
+  location.search = '?persona=' + encodeURIComponent(pid);
+}
+
+async function archivePersona(id){
+  if(!confirm('归档「' + id + '」？\n\n只从总端隐藏，磁盘上的文件一个都不会动，随时可以取消归档。')) return;
+  try{
+    const r = await api('/api/personas/archive', {method:'POST', body: JSON.stringify({id})});
+    toast(r.hint || '已归档', 'ok');
+    loadHub();
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+async function unarchivePersona(id){
+  try{
+    const r = await api('/api/personas/archive',
+      {method:'POST', body: JSON.stringify({id, archived:false})});
+    toast(r.hint || '已恢复', 'ok');
+    loadHub();
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+function openNew(){
+  $('#np-name').value = '';
+  $('#np-dir').value = '';
+  $('#np-summary').value = '';
+  $('#np-err').style.display = 'none';
+  $('#np-ok').disabled = false;
+  $('#new-modal').classList.add('on');
+  setTimeout(() => $('#np-name').focus(), 40);
+}
+
+async function submitNew(){
+  const name = $('#np-name').value.trim();
+  const dir = $('#np-dir').value.trim();
+  const summary = $('#np-summary').value.trim();
+  const err = $('#np-err');
+  if(!name){ err.textContent = '显示名不能为空'; err.style.display = 'block'; return; }
+  const btn = $('#np-ok');
+  btn.disabled = true;
+  try{
+    const r = await api('/api/personas',
+      {method:'POST', body: JSON.stringify({name, dir, summary})});
+    toast(r.hint || '已创建', 'ok');
+    enterConsole(r.persona.id);
+  }catch(e){
+    err.textContent = e.message;
+    err.style.display = 'block';
+    btn.disabled = false;
+  }
+}
+
+function openImport(){
+  $('#ip-path').value = '';
+  $('#ip-err').style.display = 'none';
+  $('#ip-ok').disabled = false;
+  $('#import-modal').classList.add('on');
+  setTimeout(() => $('#ip-path').focus(), 40);
+}
+
+async function submitImport(){
+  const path = $('#ip-path').value.trim();
+  const err = $('#ip-err');
+  if(!path){ err.textContent = '填一下目录路径'; err.style.display = 'block'; return; }
+  const btn = $('#ip-ok');
+  btn.disabled = true;
+  try{
+    const r = await api('/api/personas/import', {method:'POST', body: JSON.stringify({path})});
+    $('#import-modal').classList.remove('on');
+    toast(r.hint || '已导入', 'ok');
+    loadHub();
+  }catch(e){
+    err.textContent = e.message;
+    err.style.display = 'block';
+    btn.disabled = false;
+  }
+}
+
+/* 直接带 ?persona= 进来时校验一次：库被归档或删掉就退回总端 */
+async function verifyScope(){
+  try{
+    const d = await api('/api/personas');
+    const p = d.personas.find(x => x.id === CUR);
+    if(!p || p.archived){
+      alert('人格库「' + CUR + '」不存在或已归档，回总端重新选一个。');
+      location.href = location.pathname;
+    }
+  }catch(e){ /* 状态接口本身失败就不打扰 */ }
+}
+
+/* ---------- boot ---------- */
+if(CUR){
+  const bootTab = new URLSearchParams(location.search).get('tab');
+  if(bootTab){
+    const t = document.querySelector('.tab[data-tab="' + bootTab + '"]');
+    if(t) t.click();
+  }
+  refreshStatus();
+  pollLogs();
+  loadIngestState();
+  setInterval(refreshStatus, 3000);
+  setInterval(pollLogs, 1000);
+  verifyScope();
+  $('#btn-hub').onclick = () => { location.href = location.pathname; };
+    // 有料就直接开跑；已经是"已收齐"就打开清单（看看上轮改了什么、要不要撤回）
+  $('#btn-ingest').onclick = () => {
+    if(ING_POLL){ ingOpen(); return; }
+    if(INGEST && INGEST.pending > 0) ingestRunRaw();
+    else ingOpen();
+  };
+  $('#ib-open').onclick = ingOpen;
+  $('#ib-close').onclick = () => { $('#ingest-bar').hidden = true; };
+  $('#ib-undo').onclick = () => ingUndo($('#ib-undo').dataset.run || ING_RUN);
+  $('#ing-close').onclick = ingClose;
+  $('#ing-caret').onclick = ev => {
+    ev.stopPropagation();
+    ingMenu($('#ing-menu').hidden);
+  };
+  $('#ing-menu').onclick = ev => {
+    const act = ev.target && ev.target.dataset ? ev.target.dataset.act : '';
+    if(!act) return;
+    ingMenu(false);
+    if(act === 'memory') ingestMemory();
+    else if(act === 'both') ingestRunRaw({then_memory: true});
+    else ingestRunRaw();
+  };
+  document.addEventListener('click', () => ingMenu(false));
+  $('#ing-undo').onclick = () => ingUndo($('#ing-undo').dataset.run || ING_RUN);
+  $('#ingest-modal').onclick = ev => { if(ev.target.id === 'ingest-modal') ingClose(); };
+  // 深链：地址后面带 #ingest 就直接展开清单（刷新后想接着看这一轮改了什么）
+  if(location.hash === '#ingest') setTimeout(ingOpen, 300);
+  // #config 同理：想直接跳到配置页（归纳开关就在那一页）
+  if(location.hash === '#config') setTimeout(() => {
+    const t = document.querySelector('.tab[data-tab="config"]');
+    if(t) t.click();
+    // 配置页十几组，等它渲染完把「归纳」那几条滚到眼前
+    setTimeout(() => {
+      const el = document.querySelector('[data-path="ingest.max_per_run"]');
+      if(el) el.scrollIntoView({block: 'center'});
+    }, 900);
+  }, 300);
+}else{
+  document.body.classList.add('hub-mode');
+  loadHub();
+  $('#np-cancel').onclick = () => $('#new-modal').classList.remove('on');
+  $('#np-ok').onclick = submitNew;
+  $('#new-modal').onclick = ev => {
+    if(ev.target.id === 'new-modal') $('#new-modal').classList.remove('on');
+  };
+  $('#hub-toggle-arch').onclick = () => { SHOW_ARCH = !SHOW_ARCH; loadHub(); };
+  $('#hub-import').onclick = openImport;
+  $('#ip-cancel').onclick = () => $('#import-modal').classList.remove('on');
+  $('#ip-ok').onclick = submitImport;
+  $('#import-modal').onclick = ev => {
+    if(ev.target.id === 'import-modal') $('#import-modal').classList.remove('on');
+  };
+}
+</script>
+<script>
+/* 明暗切换：暖白档案（默认）/ 暗色终端。落在 localStorage，刷新不丢。 */
+(function(){
+  var KEY = 'qab-theme';
+  function current(){
+    try { return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light'; } catch(e){ return 'light'; }
+  }
+  function apply(t){
+    var dark = t === 'dark';
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    try { localStorage.setItem(KEY, dark ? 'dark' : 'light'); } catch(e){}
+    var btns = document.querySelectorAll('.theme-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].textContent = dark ? '◑ DARK' : '◐ LIGHT';
+      btns[i].setAttribute('title', dark ? '切到暖白档案' : '切到暗色终端');
+    }
+  }
+  apply(current());
+  document.addEventListener('click', function(ev){
+    var el = ev.target;
+    while (el && el !== document.body) {
+      if (el.classList && el.classList.contains('theme-btn')) {
+        apply(current() === 'dark' ? 'light' : 'dark');
+        ev.preventDefault();
+        return;
+      }
+      el = el.parentNode;
+    }
+  });
+})();
+</script>
+</body>
+</html>
